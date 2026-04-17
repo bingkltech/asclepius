@@ -518,6 +518,10 @@ export default function App() {
                 uptimePercent: uptime,
                 history: newHistory,
               },
+              // Auto-degrade health when heartbeat is failing
+              health: newStatus === "dead" ? Math.max(0, agent.health - 25) : 
+                      newStatus === "unresponsive" ? Math.max(10, agent.health - 10) :
+                      agent.health,
             };
           }
         })
@@ -526,6 +530,66 @@ export default function App() {
 
     return () => {
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+    };
+  }, []);
+
+  // ─── Dead Agent Auto-Recovery Watchdog ───
+  const recoveryRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    recoveryRef.current = setInterval(() => {
+      setAgents((prev) => {
+        const deadAgents = prev.filter(
+          (a) => a.heartbeat.status === "dead" && a.status !== "paused"
+        );
+
+        if (deadAgents.length === 0) return prev;
+
+        // Log recovery events
+        deadAgents.forEach((dead) => {
+          const recoveryLog: LogEntry = {
+            id: `recovery-${dead.id}-${Date.now()}`,
+            timestamp: new Date().toLocaleTimeString(),
+            agentId: dead.name,
+            message: `[AUTO-RECOVERY] Agent heartbeat was DEAD (${dead.heartbeat.missedBeats} missed beats). Initiating automatic restart...`,
+            type: "error",
+          };
+          setLogs((prevLogs) => [recoveryLog, ...prevLogs].slice(0, 50));
+
+          // Post to Command Center
+          setCommandMessages((prevMsgs) => [
+            ...prevMsgs,
+            {
+              id: `recovery-alert-${dead.id}-${Date.now()}`,
+              role: "system" as const,
+              sender: "WATCHDOG",
+              content: `⚠️ **AUTO-RECOVERY:** ${dead.name} (${dead.credentials?.email || "unprovisioned"}) was detected DEAD. Heartbeat reset executed. Health degraded to ${Math.max(0, dead.health - 25)}%.`,
+              timestamp: new Date().toLocaleTimeString(),
+            },
+          ]);
+        });
+
+        // Reset dead agents
+        return prev.map((agent) => {
+          if (agent.heartbeat.status !== "dead" || agent.status === "paused") return agent;
+
+          return {
+            ...agent,
+            status: "idle" as const,
+            lastAction: "Recovered from heartbeat failure",
+            health: Math.min(100, agent.health + 50), // Partial health restoration
+            heartbeat: {
+              ...agent.heartbeat,
+              missedBeats: 0,
+              status: "alive" as const,
+              lastBeat: new Date().toISOString(),
+            },
+          };
+        });
+      });
+    }, 15000); // Check every 15 seconds
+
+    return () => {
+      if (recoveryRef.current) clearInterval(recoveryRef.current);
     };
   }, []);
 
