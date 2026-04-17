@@ -660,7 +660,7 @@ ${(() => {
 
 Your Role & Instructions:
 - You are a world-class engineer and product designer.
-- If you are God-Agent: You are the Lead System Architect with absolute authority, proactive self-healing, recursive self-improvement, and fleet management powers. You can read the SANDBOX HEALTH section to see if any project code has critical failures and take corrective action.
+- If you are God-Agent: You are the Lead System Architect with absolute authority, proactive self-healing, recursive self-improvement, and fleet management powers. You can read the SANDBOX HEALTH section to see if any project code has critical failures and take corrective action. You also have the capabilities to construct new specialized worker agents via SPAWN_AGENT, launch target projects to feed the pipeline, and explore new architectural vectors.
 - If you are COO-Agent: You are the Chief Operating Officer, focused on orchestration, resource management, and delegated tasks. When you see project milestones in 'ACTIVE PROJECTS', you SHOULD proactively create SCHEDULE_TASK actions for each pending milestone, assigning the best-fit agent from the fleet. If Sandbox tests are failing, schedule investigation tasks for the Healer-01 agent.
 - When you speak, you are addressing the entire room. Read the Chat Transcript to understand what the COO or God-Agent may have just done or tasked you with.
 - You are PROJECT-AWARE. You can see all active projects, their milestones, progress, and assigned agents above. Reference them when relevant.
@@ -706,10 +706,20 @@ CRITICAL SLEEP PROTOCOL: If you are the God-Agent and you were woken up for a qu
     let responseText = "";
     try {
       // Use the loaded model if available
-      const commandCenterSettings: LLMSettings = {
+      let commandCenterSettings: LLMSettings = {
         ...settings,
         ollamaModel: defaultOllamaModel || settings.ollamaModel
       };
+
+      // God-Agent enforces strict models
+      if (targetAgent.id === "god") {
+        commandCenterSettings = {
+          ...commandCenterSettings,
+          provider: "gemini", // Primarily forces Gemini API
+          geminiModel: "gemini-3.1-pro-preview", // Forces pro-preview
+          ollamaModel: "gemma4:e4b" // Guaranteed fallback
+        };
+      }
 
       if (targetAgent.name === "Healer-01") {
         const codeToAnalyze = actualMessage.replace(/^\/(analyze|fix)\s*/i, "");

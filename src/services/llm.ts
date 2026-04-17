@@ -19,7 +19,7 @@ interface RateLimitState {
 
 const RATE_LIMIT_KEY = "asclepius_gemini_rate_limit";
 const DEFAULT_COOLDOWN_MS = 60 * 1000; // Start with 1 minute cooldown
-const MAX_COOLDOWN_MS = 15 * 60 * 1000; // Cap at 15 minutes
+const MAX_COOLDOWN_MS = 5 * 60 * 1000; // Cap at 5 minutes for periodic re-attempts
 
 function getRateLimitState(): RateLimitState {
   try {
@@ -75,18 +75,22 @@ export function getGeminiRefreshInfo(): { isLimited: boolean; refreshAt: number;
   };
 }
 
-/** Detect if an error is a Gemini 429 rate limit */
-function isRateLimitError(error: any): boolean {
+/** Detect if an error warrants immediate failover (429, 401, timeout, network) */
+function isFailoverCondition(error: any): boolean {
   if (!error) return false;
   const msg = error?.message || "";
   const str = typeof error === "string" ? error : JSON.stringify(error);
-  return (
-    msg.includes("429") ||
-    error?.status === 429 ||
-    str.includes("429") ||
-    str.includes("RESOURCE_EXHAUSTED") ||
-    str.includes("quota")
-  );
+  
+  // Rate Limits (429)
+  if (msg.includes("429") || error?.status === 429 || str.includes("429") || str.includes("RESOURCE_EXHAUSTED") || str.includes("quota")) return true;
+  
+  // Auth Errors (401 / Missing Key)
+  if (msg.includes("401") || error?.status === 401 || str.includes("401") || str.includes("API key") || str.includes("API_KEY")) return true;
+  
+  // Network & Timeouts
+  if (msg.toLowerCase().includes("timeout") || msg.toLowerCase().includes("network") || msg.toLowerCase().includes("fetch failed")) return true;
+
+  return false;
 }
 
 // ─── Public API ───
@@ -111,10 +115,10 @@ export const testConnection = async (settings: LLMSettings): Promise<{ success: 
       return { success: true, message: `Ollama connected successfully (Model: ${settings.ollamaModel}).` };
     }
   } catch (error) {
-    if (isRateLimitError(error)) {
+    if (isFailoverCondition(error)) {
       const state = setRateLimit();
       const info = getGeminiRefreshInfo();
-      return { success: false, message: `Gemini rate-limited (429). Auto-fallback to Ollama activated. Gemini refreshes in ${info.timeLeft}.` };
+      return { success: false, message: `Gemini unavailable (Disruption/429/401). Auto-fallback to Ollama activated. Gemini reconnect attempt in ${info.timeLeft}.` };
     }
     const errorMsg = error instanceof Error ? error.message : String(error);
     return { success: false, message: `Connection failed: ${errorMsg}` };
@@ -129,9 +133,9 @@ export const getUnifiedCodeAnalysis = async (settings: LLMSettings, code: string
     try {
       return await analyzeWithGemini(code, settings.geminiApiKey);
     } catch (error) {
-      if (isRateLimitError(error)) {
+      if (isFailoverCondition(error)) {
         setRateLimit();
-        console.warn("[QUOTA] Gemini 429 detected during analysis. Falling back to Ollama.");
+        console.warn("[FALLBACK_INIT] Gemini disruption detected (Network/401/429). Falling back to Ollama.");
         // Fall through to Ollama below
       } else {
         throw error;
@@ -211,10 +215,10 @@ export const getUnifiedChatResponse = async (
       }));
       return await chatWithGeminiAgent(message, geminiHistory, systemInstruction, settings.geminiApiKey, settings.geminiModel);
     } catch (error) {
-      if (isRateLimitError(error)) {
+      if (isFailoverCondition(error)) {
         const state = setRateLimit();
         const info = getGeminiRefreshInfo();
-        console.warn(`[QUOTA] Gemini 429 detected. Auto-switching to Ollama for ${info.timeLeft}.`);
+        console.warn(`[FALLBACK_INIT] Gemini disruption detected. Auto-switching to Ollama for ${info.timeLeft}.`);
         // Fall through to Ollama below
       } else {
         throw error;

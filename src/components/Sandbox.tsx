@@ -10,6 +10,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -67,6 +75,8 @@ export function Sandbox({ settings, projects = [], agents = [], sandboxRuns = []
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [currentRun, setCurrentRun] = useState<SandboxRun | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [showRoutingModal, setShowRoutingModal] = useState(false);
+  const [pendingTasks, setPendingTasks] = useState<{ error: SandboxErrorType, agentId: string }[]>([]);
 
   const selectedProject = projects.find(p => p.id === selectedProjectId);
   const projectRuns = sandboxRuns.filter(r => selectedProjectId === "none" ? !r.projectId : r.projectId === selectedProjectId);
@@ -77,11 +87,15 @@ export function Sandbox({ settings, projects = [], agents = [], sandboxRuns = []
       analysis.bugs.forEach((bug, i) => {
         if (bug && bug !== "Failed to analyze code") {
           const lineMatch = bug.match(/line\s*(\d+)/i);
+          const colMatch = bug.match(/col(?:umn)?\s*(\d+)/i);
+          const fileMatch = bug.match(/(?:in|at|file)\s+['"]?([\w./-]+\.\w+)['"]?/i) || bug.match(/\[([\w./-]+\.\w+)\]/);
           errors.push({
             id: `err-${Date.now()}-${i}`,
             message: bug,
             severity: bug.toLowerCase().includes("security") || bug.toLowerCase().includes("vulnerab") ? "critical" : "warning",
             line: lineMatch ? parseInt(lineMatch[1]) : undefined,
+            column: colMatch ? parseInt(colMatch[1]) : undefined,
+            filePath: fileMatch ? fileMatch[1] : undefined,
             status: "open",
           });
         }
@@ -90,10 +104,16 @@ export function Sandbox({ settings, projects = [], agents = [], sandboxRuns = []
     if (analysis.suggestions) {
       analysis.suggestions.forEach((sug, i) => {
         if (sug) {
+          const lineMatch = sug.match(/line\s*(\d+)/i);
+          const colMatch = sug.match(/col(?:umn)?\s*(\d+)/i);
+          const fileMatch = sug.match(/(?:in|at|file)\s+['"]?([\w./-]+\.\w+)['"]?/i) || sug.match(/\[([\w./-]+\.\w+)\]/);
           errors.push({
             id: `info-${Date.now()}-${i}`,
             message: sug,
             severity: "info",
+            line: lineMatch ? parseInt(lineMatch[1]) : undefined,
+            column: colMatch ? parseInt(colMatch[1]) : undefined,
+            filePath: fileMatch ? fileMatch[1] : undefined,
             status: "open",
           });
         }
@@ -204,6 +224,13 @@ export function Sandbox({ settings, projects = [], agents = [], sandboxRuns = []
 
     agents.forEach(a => {
       if (a.status === "paused" || a.id === "god") return; // Don't burden God with grunt work
+
+      // Token Budget Constraint (Hard Block)
+      if (a.budget && a.budget.dailyTokenLimit > 0) {
+        const utilRatio = a.budget.dailyTokensUsed / a.budget.dailyTokenLimit;
+        if (utilRatio >= 1 && a.budget.overage === "block") return; // Skip agent if fully exhausted
+      }
+
       let score = 0;
       a.skills.forEach(s => {
         const cat = s.category;
@@ -215,6 +242,14 @@ export function Sandbox({ settings, projects = [], agents = [], sandboxRuns = []
         // General capability bonus
         if (cat === "engineering" || cat === "analysis") score += s.level;
       });
+
+      // Token Budget Heuristic (Soft Penalty)
+      if (a.budget && a.budget.dailyTokenLimit > 0) {
+        const utilRatio = Math.min(1, a.budget.dailyTokensUsed / a.budget.dailyTokenLimit);
+        // Deprioritize agents that are close to their limits (up to 50% score penalty)
+        score = score * (1 - (utilRatio * 0.5));
+      }
+
       if (score > bestScore) {
         bestScore = score;
         bestAgent = a.id;
@@ -223,31 +258,38 @@ export function Sandbox({ settings, projects = [], agents = [], sandboxRuns = []
     return bestAgent;
   };
 
-  const handleCreateTasksFromErrors = () => {
+  const handlePreviewTasks = () => {
     if (!currentRun || !onCreateTask) return;
     const actionableErrors = currentRun.errors.filter(e => e.severity === "critical" || e.severity === "warning");
     if (actionableErrors.length === 0) {
       toast.info("No actionable errors to create tasks from.");
       return;
     }
+    const tasks = actionableErrors.map(err => ({
+      error: err,
+      agentId: findBestAgent(err)
+    }));
+    setPendingTasks(tasks);
+    setShowRoutingModal(true);
+  };
 
+  const handleConfirmTasks = () => {
     const assignmentSummary: string[] = [];
-    actionableErrors.forEach(err => {
-      const bestAgentId = findBestAgent(err);
-      const bestAgentName = agents.find(a => a.id === bestAgentId)?.name || bestAgentId;
-      onCreateTask({
-        agentId: bestAgentId,
-        description: `[SANDBOX] Fix: ${err.message}${selectedProject ? ` (Project: ${selectedProject.name})` : ""}`,
+    pendingTasks.forEach(({ error, agentId }) => {
+      const bestAgentName = agents.find(a => a.id === agentId)?.name || agentId;
+      onCreateTask!({
+        agentId: agentId,
+        description: `[SANDBOX] Fix: ${error.message}${selectedProject ? ` (Project: ${selectedProject.name})` : ""}`,
         type: "once",
       });
-      assignmentSummary.push(`• **${err.severity.toUpperCase()}** → ${bestAgentName}: ${err.message.slice(0, 60)}`);
+      assignmentSummary.push(`• **${error.severity.toUpperCase()}** → ${bestAgentName}: ${error.message.slice(0, 60)}`);
     });
 
-    // Log to Command Center
     if (onPostSystemMessage) {
-      onPostSystemMessage("SANDBOX", `[AUTO-TASK] ${actionableErrors.length} resolution task(s) created from analysis:\n${assignmentSummary.join("\n")}`);
+      onPostSystemMessage("SANDBOX", `[MANUAL-TASK] ${pendingTasks.length} resolution task(s) overridden and routed:\n${assignmentSummary.join("\n")}`);
     }
-    toast.success(`${actionableErrors.length} resolution task(s) created and routed to best-fit agents.`);
+    toast.success(`${pendingTasks.length} resolution task(s) successfully routed.`);
+    setShowRoutingModal(false);
   };
 
   const reset = () => {
@@ -400,9 +442,9 @@ export function Sandbox({ settings, projects = [], agents = [], sandboxRuns = []
                       </span>
                     </div>
                     {onCreateTask && (
-                      <Button size="sm" variant="outline" onClick={handleCreateTasksFromErrors} className="h-6 text-[9px] uppercase tracking-wider border-amber-500/20 text-amber-400 hover:bg-amber-500/10">
+                      <Button size="sm" variant="outline" onClick={handlePreviewTasks} className="h-6 text-[9px] uppercase tracking-wider border-amber-500/20 text-amber-400 hover:bg-amber-500/10">
                         <ListTodo className="w-3 h-3 mr-1" />
-                        Create Tasks
+                        Preview & Route Tasks
                       </Button>
                     )}
                   </div>
@@ -418,8 +460,13 @@ export function Sandbox({ settings, projects = [], agents = [], sandboxRuns = []
                             <Badge variant="outline" className={cn("text-[7px] h-3.5 border", SEVERITY_CONFIG[err.severity].bg, SEVERITY_CONFIG[err.severity].color)}>
                               {err.severity}
                             </Badge>
-                            {err.line && (
-                              <span className="text-[9px] text-muted-foreground/40 font-mono">Line {err.line}</span>
+                            {err.filePath && (
+                              <span className="text-[9px] text-muted-foreground/40 font-mono truncate max-w-[120px]">{err.filePath}</span>
+                            )}
+                            {(err.line || err.column) && (
+                              <span className="text-[9px] text-muted-foreground/40 font-mono">
+                                Line {err.line || '?'}{err.column ? `:${err.column}` : ''}
+                              </span>
                             )}
                           </div>
                         </div>
@@ -556,6 +603,68 @@ export function Sandbox({ settings, projects = [], agents = [], sandboxRuns = []
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Manual Routing Override Modal */}
+      <Dialog open={showRoutingModal} onOpenChange={setShowRoutingModal}>
+        <DialogContent className="sm:max-w-[600px] bg-card/95 backdrop-blur-xl border-border/50">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Boxes className="w-5 h-5 text-amber-400" />
+              Manual Routing Override
+            </DialogTitle>
+            <DialogDescription>
+              Review and override the AI's suggested task routing before dispatching to the fleet.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+            {pendingTasks.map((task, index) => (
+              <div key={task.error.id} className="flex flex-col gap-2 p-3 rounded-lg border border-border/30 bg-secondary/10">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className={cn("text-[8px] h-4 border", SEVERITY_CONFIG[task.error.severity].bg, SEVERITY_CONFIG[task.error.severity].color)}>
+                        {task.error.severity}
+                      </Badge>
+                      <span className="text-xs font-mono text-muted-foreground line-clamp-1">{task.error.message}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 mt-2 pt-2 border-t border-border/20">
+                  <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground/60 shrink-0">Assign to:</span>
+                  <Select
+                    value={task.agentId}
+                    onValueChange={(val) => {
+                      const newTasks = [...pendingTasks];
+                      newTasks[index].agentId = val;
+                      setPendingTasks(newTasks);
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-card">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {agents.filter(a => a.status !== "paused").map(a => (
+                        <SelectItem key={a.id} value={a.id}>
+                          <div className="flex items-center gap-2">
+                            <div className={cn("w-1.5 h-1.5 rounded-full", a.status === 'working' ? 'bg-amber-400' : 'bg-emerald-400')} />
+                            {a.name} <span className="text-muted-foreground ml-1">({a.role})</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter className="border-t border-border/20 pt-4">
+            <Button variant="ghost" onClick={() => setShowRoutingModal(false)}>Cancel</Button>
+            <Button onClick={handleConfirmTasks} className="bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/20">
+              Confirm & Dispatch Tasks
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

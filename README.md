@@ -65,6 +65,13 @@ Protected agents (God-Agent, COO-Agent) cannot be terminated.
 - **`RESOLVE_ERROR` Action:** Agents can autonomously mark sandbox errors as resolved from within the Command Center via `json:action` blocks.
 - **Health Badges:** Project list cards show live health indicators (green ✓ Clean / red ✗ N errors) based on most recent sandbox runs.
 
+### v2.7 — System Resilience & Human-in-the-Loop
+- **Precision AST Repair:** Sandbox errors now natively map `lineNumber`, `column`, and `filePath` directly into Healer-01's context window for surgical refactoring.
+- **Token Budget Constraints:** Agent routing heuristics now actively calculate token usage; overworked agents receive a soft-penalty (up to 50%) or a hard-block, ensuring workload distribution across the entire fleet.
+- **Manual Routing Override:** While the system auto-selects the optimal agent, clicking "Create Tasks" now opens a preview modal allowing human operators to manually re-route tasks via a UI dropdown prior to deployment.
+- **GitHub Milestone Sync:** Projects with a valid `githubUrl` feature a one-click Sync button that automatically fetches open issues via the GitHub REST API and maps them directly into active `ProjectGoal` milestones for the God-Agent to orchestrate.
+- **Aggressive Local Failover:** The `MODEL_FALLBACK_INIT` protocol instantly intercepts network drops, timeouts, and `401/403` API errors, migrating orchestration to local Ollama hardware (`gemma4:e4b`) while maintaining a silent 5-minute auto-recovery heartbeat to the cloud.
+
 ---
 
 ## 💓 Heartbeat System

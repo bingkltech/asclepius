@@ -87,6 +87,7 @@ export function ProjectsPage({ projects, agents, onUpdateProjects, sandboxRuns =
   // Goal form state
   const [newGoalTitle, setNewGoalTitle] = useState("");
   const [newGoalDescription, setNewGoalDescription] = useState("");
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const selectedProject = projects.find(p => p.id === selectedProjectId);
 
@@ -160,6 +161,57 @@ export function ProjectsPage({ projects, agents, onUpdateProjects, sandboxRuns =
   const handleDeleteGoal = (goalId: string) => {
     if (!selectedProject) return;
     handleUpdateProject({ ...selectedProject, goals: selectedProject.goals.filter(g => g.id !== goalId) });
+  };
+
+  const handleSyncGithub = async () => {
+    if (!selectedProject?.githubUrl) return;
+    
+    // Parse repo from URL (e.g. https://github.com/BinqQarenYu/asclepius -> BinqQarenYu/asclepius)
+    const match = selectedProject.githubUrl.match(/github\.com\/([^\/]+\/[^\/]+)/);
+    if (!match) {
+      toast.error("Invalid GitHub URL format. Must be a github.com repository.");
+      return;
+    }
+    const repo = match[1].replace(/\/$/, "");
+    
+    setIsSyncing(true);
+    try {
+      const res = await fetch(`https://api.github.com/repos/${repo}/issues?state=all&per_page=30`);
+      if (!res.ok) throw new Error(`API returned ${res.status}`);
+      const issues = await res.json();
+      
+      let syncedCount = 0;
+      const newGoals = [...selectedProject.goals];
+      
+      issues.forEach((issue: any) => {
+        if (!issue.pull_request) { // Skip PRs, only want issues
+          const existingGoal = newGoals.find(g => g.id === `github-${issue.number}`);
+          if (!existingGoal) {
+            newGoals.push({
+              id: `github-${issue.number}`,
+              title: `[#${issue.number}] ${issue.title}`,
+              description: issue.body ? issue.body.slice(0, 100) + '...' : 'Imported from GitHub',
+              status: issue.state === 'closed' ? 'completed' : 'pending',
+              progress: issue.state === 'closed' ? 100 : 0,
+              createdAt: issue.created_at,
+              completedAt: issue.closed_at || undefined,
+            });
+            syncedCount++;
+          }
+        }
+      });
+      
+      if (syncedCount > 0) {
+        handleUpdateProject({ ...selectedProject, goals: newGoals });
+        toast.success(`Synced ${syncedCount} new issue(s) from GitHub.`);
+      } else {
+        toast.info("No new issues found to sync.");
+      }
+    } catch (error) {
+      toast.error(`GitHub Sync failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleAssignAgent = (agentId: string) => {
@@ -258,9 +310,23 @@ export function ProjectsPage({ projects, agents, onUpdateProjects, sandboxRuns =
                 <Target className="w-4 h-4 text-muted-foreground/50" />
                 <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">Milestones</span>
               </div>
-              <Badge variant="outline" className="text-[9px] h-5 bg-secondary/30 border-border/50 text-muted-foreground/60">
-                {selectedProject.goals.length} goals
-              </Badge>
+              <div className="flex items-center gap-2">
+                {selectedProject.githubUrl && (
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={handleSyncGithub} 
+                    disabled={isSyncing}
+                    className="h-6 text-[9px] uppercase tracking-wider border-sky-500/20 text-sky-400 hover:bg-sky-500/10"
+                  >
+                    {isSyncing ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Github className="w-3 h-3 mr-1" />}
+                    Sync Issues
+                  </Button>
+                )}
+                <Badge variant="outline" className="text-[9px] h-5 bg-secondary/30 border-border/50 text-muted-foreground/60">
+                  {selectedProject.goals.length} goals
+                </Badge>
+              </div>
             </div>
 
             {/* Add goal form */}

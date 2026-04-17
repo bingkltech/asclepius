@@ -245,6 +245,8 @@ export interface SandboxError {
   message: string;
   severity: SandboxErrorSeverity;
   line?: number;
+  column?: number;
+  filePath?: string;
   taskId?: string;
   status: 'open' | 'mitigating' | 'resolved';
 }
