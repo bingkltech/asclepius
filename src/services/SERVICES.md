@@ -1,6 +1,6 @@
 # 🧠 AI Services Layer
 
-> *The dual-brain LLM abstraction that powers every agent in Asclepius.*
+> _The dual-brain LLM abstraction that powers every agent in Asclepius._
 
 ## Architecture
 
@@ -51,6 +51,7 @@ getUnifiedChatResponse(
 ```
 
 **Routing Logic:**
+
 1. If `settings.provider === 'gemini'` → Call `chatWithGeminiAgent()` directly
 2. If `settings.provider === 'ollama'` → Attempt `chatWithOllama()`
 3. **Fallback:** If Ollama fails → Automatically fall back to Gemini with a `[Note: Falling back]` prefix
@@ -67,6 +68,7 @@ getUnifiedCodeAnalysis(
 ```
 
 Returns structured output:
+
 ```typescript
 {
   bugs: string[];
@@ -77,6 +79,7 @@ Returns structured output:
 ```
 
 **Routing Logic:**
+
 1. Gemini: Uses structured JSON output with `responseMimeType: "application/json"` and a JSON schema
 2. Ollama: Generates text, then extracts JSON via regex `/{[\s\S]*}/`
 3. **Fallback:** If Ollama JSON parse fails → Fall back to Gemini
@@ -84,6 +87,7 @@ Returns structured output:
 ### `testConnection()`
 
 Simple connectivity test for the currently configured provider:
+
 - Gemini: Sends `"ping"` with system instruction `"Respond with 'pong'"`
 - Ollama: Calls `generateOllamaContent()` with `"ping"`
 
@@ -94,6 +98,7 @@ Simple connectivity test for the currently configured provider:
 ### SDK
 
 Uses the official `@google/genai` package:
+
 ```typescript
 import { GoogleGenAI, Type, Content } from "@google/genai";
 ```
@@ -103,7 +108,7 @@ import { GoogleGenAI, Type, Content } from "@google/genai";
 ```typescript
 const getAI = (apiKey?: string) => {
   return new GoogleGenAI({
-    apiKey: apiKey || process.env.GEMINI_API_KEY || ""
+    apiKey: apiKey || process.env.GEMINI_API_KEY || "",
   });
 };
 ```
@@ -113,11 +118,19 @@ Priority: Explicit key → Environment variable → Empty (will fail)
 ### Functions
 
 #### `analyzeCode(code, apiKey?)`
+
 - **Model:** `gemini-3.1-pro-preview`
 - **Output:** Structured JSON via `responseMimeType: "application/json"` + schema
 - **Error Handling:** Detects 429 rate limits and returns a quota exhaustion message
 
+#### `generateAgentAction(agentName, context, apiKey?)`
+
+- **Model:** `gemini-3.1-flash-lite-preview` (lightweight, for the simulation loop)
+- **Purpose:** Generates short action descriptions for the agent heartbeat
+- **Error Handling:** On rate limit → returns "System paused" message
+
 #### `chatWithAgent(message, history, systemInstruction, apiKey?, model?)`
+
 - **Model:** Configurable (defaults to `gemini-3.1-pro-preview`)
 - **Mode:** Multi-turn chat via `ai.chats.create()` with history injection
 - **Error Handling:** Rate limit detection with link to billing page
@@ -125,11 +138,13 @@ Priority: Explicit key → Environment variable → Empty (will fail)
 ### Rate Limit Detection
 
 All Gemini functions implement the same robust rate limit detection:
+
 ```typescript
-const isRateLimit = error?.message?.includes("429")
-  || error?.status === 429
-  || JSON.stringify(error).includes("429")
-  || JSON.stringify(error).includes("RESOURCE_EXHAUSTED");
+const isRateLimit =
+  error?.message?.includes("429") ||
+  error?.status === 429 ||
+  JSON.stringify(error).includes("429") ||
+  JSON.stringify(error).includes("RESOURCE_EXHAUSTED");
 ```
 
 ---
@@ -138,18 +153,19 @@ const isRateLimit = error?.message?.includes("429")
 
 ### API Endpoints
 
-| Function | Endpoint | Purpose |
-|---|---|---|
-| `listOllamaModels()` | `GET /api/tags` | List installed models |
+| Function                  | Endpoint             | Purpose                  |
+| ------------------------- | -------------------- | ------------------------ |
+| `listOllamaModels()`      | `GET /api/tags`      | List installed models    |
 | `generateOllamaContent()` | `POST /api/generate` | One-shot text generation |
-| `chatWithOllama()` | `POST /api/chat` | Multi-turn conversation |
+| `chatWithOllama()`        | `POST /api/chat`     | Multi-turn conversation  |
 
 ### Configuration
 
 All Ollama calls use:
+
 ```typescript
 options: {
-  num_ctx: 128000  // Maximize context window
+  num_ctx: 128000; // Maximize context window
 }
 ```
 
@@ -195,22 +211,22 @@ The fallback is **transparent to the user** — the response appears with a note
 ## Type Definitions
 
 ```typescript
-type LLMProvider = 'gemini' | 'ollama';
+type LLMProvider = "gemini" | "ollama";
 
 interface LLMSettings {
   provider: LLMProvider;
-  ollamaBaseUrl: string;       // e.g. "http://localhost:11434"
-  ollamaModel: string;         // e.g. "gemma4"
-  geminiModel: string;         // e.g. "gemini-3.1-pro-preview"
+  ollamaBaseUrl: string; // e.g. "http://localhost:11434"
+  ollamaModel: string; // e.g. "gemma4"
+  geminiModel: string; // e.g. "gemini-3.1-pro-preview"
   geminiApiKey?: string;
-  autoHeal?: boolean;          // Enable proactive error detection
-  usage?: LLMUsageStats;       // Daily quota tracking
+  autoHeal?: boolean; // Enable proactive error detection
+  usage?: LLMUsageStats; // Daily quota tracking
 }
 
 interface LLMUsageStats {
   requestsToday: number;
-  lastResetDate: string;       // e.g. "Wed Apr 16 2026"
-  limitPerDay: number;         // Default: 1500
+  lastResetDate: string; // e.g. "Wed Apr 16 2026"
+  limitPerDay: number; // Default: 1500
 }
 ```
 

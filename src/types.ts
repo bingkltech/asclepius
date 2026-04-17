@@ -132,6 +132,49 @@ export function createHeartbeat(
   };
 }
 
+export function awardAgentXP(
+  agent: Agent,
+  category: SkillCategory,
+  xpAmount: number
+): { updatedAgent: Agent; levelUps: string[] } {
+  const levelUps: string[] = [];
+  const updatedSkills = agent.skills.map((skill) => {
+    if (skill.category !== category || skill.level >= 5) return skill;
+
+    let newXp = skill.xp + xpAmount;
+    let newLevel = skill.level;
+    let newXpToNext = skill.xpToNext;
+
+    while (newXp >= newXpToNext && newLevel < 5) {
+      newXp -= newXpToNext;
+      newLevel++;
+      newXpToNext = SKILL_XP_TABLE[newLevel] || 0;
+      levelUps.push(`${skill.name} leveled up to L${newLevel} (${SKILL_LEVEL_NAMES[newLevel]})!`);
+    }
+
+    if (newLevel === 5) {
+      newXp = 0; // Max level cap
+    }
+
+    return {
+      ...skill,
+      level: newLevel,
+      xp: newXp,
+      xpToNext: newXpToNext,
+      usageCount: skill.usageCount + 1,
+      lastUsed: new Date().toISOString(),
+    };
+  });
+
+  return {
+    updatedAgent: {
+      ...agent,
+      skills: updatedSkills,
+    },
+    levelUps,
+  };
+}
+
 // ─── Budget System ───
 export interface AgentBudget {
   dailyTokenLimit: number;

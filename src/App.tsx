@@ -24,6 +24,7 @@ import {
   SKILL_XP_TABLE,
   createSkill,
   createHeartbeat,
+  awardAgentXP,
 } from "./types";
 import { getUnifiedChatResponse, resolveAgentSettings } from "./services/llm";
 import { TaskScheduler } from "./components/TaskScheduler";
@@ -622,6 +623,17 @@ export default function App() {
                   }),
                 }))
               );
+            }
+            // ─── Award XP when a task completes ───
+            if (task.type === "once") {
+              const category = task.description.toLowerCase().includes("bug") || task.description.toLowerCase().includes("fix") ? "engineering" : "operations";
+              const { updatedAgent, levelUps } = awardAgentXP(agent, category, 100);
+              handleUpdateAgent(updatedAgent);
+              
+              levelUps.forEach(msg => {
+                postSystemMessage("SYSTEM", `🎉 **LEVEL UP:** ${updatedAgent.name} - ${msg}`);
+                toast.success(`Level Up! ${updatedAgent.name}: ${msg}`);
+              });
             }
 
             toast.info(`Scheduled Task: ${agent.name} - ${task.description}`);
@@ -1314,6 +1326,7 @@ export default function App() {
             onPostSystemMessage={postSystemMessage}
             selectedProjectId={activeProjectId}
             onSelectProject={setActiveProjectId}
+            onUpdateAgent={handleUpdateAgent}
           />
         );
       case "settings":

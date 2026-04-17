@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { getUnifiedCodeAnalysis, resolveAgentSettings } from "@/src/services/llm";
-import { CodeAnalysis, LLMSettings, Project, SandboxRun, SandboxError as SandboxErrorType, Agent } from "@/src/types";
+import { CodeAnalysis, LLMSettings, Project, SandboxRun, SandboxError as SandboxErrorType, Agent, awardAgentXP } from "@/src/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -57,6 +57,7 @@ interface SandboxProps {
   onPostSystemMessage?: (sender: string, content: string) => void;
   selectedProjectId?: string;
   onSelectProject?: (id: string) => void;
+  onUpdateAgent?: (agent: Agent) => void;
 }
 
 const SEVERITY_CONFIG: Record<string, { icon: React.ReactNode; color: string; bg: string }> = {
@@ -65,7 +66,7 @@ const SEVERITY_CONFIG: Record<string, { icon: React.ReactNode; color: string; bg
   info: { icon: <Info className="w-3.5 h-3.5" />, color: "text-sky-400", bg: "bg-sky-500/10 border-sky-500/20" },
 };
 
-export function Sandbox({ settings, projects = [], agents = [], sandboxRuns = [], onUpdateRuns, onCreateTask, onPostSystemMessage, selectedProjectId = "none", onSelectProject }: SandboxProps) {
+export function Sandbox({ settings, projects = [], agents = [], sandboxRuns = [], onUpdateRuns, onCreateTask, onPostSystemMessage, selectedProjectId = "none", onSelectProject, onUpdateAgent }: SandboxProps) {
   const [code, setCode] = useState(`function calculateTotal(items) {
   let total = 0;
   for (var i = 0; i < items.length; i++) {
@@ -180,6 +181,18 @@ export function Sandbox({ settings, projects = [], agents = [], sandboxRuns = []
       setCurrentRun(completedRun);
       if (onUpdateRuns) {
         onUpdateRuns([completedRun, ...sandboxRuns].slice(0, 50));
+      }
+
+      // ─── Grant XP to the analyzing agent ───
+      if (healerAgent && onUpdateAgent) {
+        const xpGained = hasCritical ? 150 : hasWarning ? 100 : 50;
+        const { updatedAgent, levelUps } = awardAgentXP(healerAgent, "analysis", xpGained);
+        onUpdateAgent(updatedAgent);
+        
+        levelUps.forEach(msg => {
+          toast.success(`Level Up! ${updatedAgent.name}: ${msg}`);
+          if (onPostSystemMessage) onPostSystemMessage("SYSTEM", `🎉 **LEVEL UP:** ${updatedAgent.name} - ${msg}`);
+        });
       }
 
       // Post event to Command Center
