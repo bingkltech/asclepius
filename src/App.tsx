@@ -805,6 +805,20 @@ export default function App() {
               levelUps.forEach(msg => {
                 postSystemMessage("SYSTEM", `🎉 **LEVEL UP:** ${reputationAgent.name} - ${msg}`);
                 toast.success(`Level Up! ${reputationAgent.name}: ${msg}`);
+                
+                // ─── Autonomous Evolution Loop ───
+                // When reaching L5, the agent proposes their own architecture refactor
+                if (msg.includes("L5")) {
+                  const evolutionTask: Omit<ScheduledTask, "id"> = {
+                    agentId: reputationAgent.id,
+                    description: `[AUTONOMOUS EVOLUTION] As a newly minted L5 Master, propose a systemic architecture refactor or tool upgrade for the Asclepius platform.`,
+                    type: "once",
+                    scheduledTime: new Date(Date.now() + 60000).toISOString(), // Schedule in 1 minute
+                    intervalMs: 60000
+                  };
+                  handleAddTask(evolutionTask);
+                  postSystemMessage("CORE", `[EVOLUTION LOOP] ${reputationAgent.name} has scheduled an autonomous self-improvement task after reaching Master Level.`);
+                }
               });
             }
 
