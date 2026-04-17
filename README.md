@@ -2,7 +2,7 @@
 
 > *An autonomous AI agent workforce where a supreme God-Agent commands, spawns, heals, and evolves an entire fleet of specialized workers — each with their own Google identity, API quota, and cognitive model.*
 
-**Version:** v2.8 · **Architecture:** Hierarchical Autonomous Workforce · **Last Audit:** 2026-04-17
+**Version:** v2.9 · **Architecture:** Hierarchical Autonomous Workforce · **Last Audit:** 2026-04-17
 
 ---
 
@@ -48,9 +48,9 @@ Agents do **not** talk to each other directly. Communication happens through thr
 |---|---|
 | **System Context String** | Before every LLM call, a ~4KB context snapshot is injected containing all agent statuses, project milestones, sandbox results, and recent logs. Every agent "sees" the whole system. |
 | **Hive-Mind Transcript** | The shared chat stream in CommandCenter — agents can read each other's recent outputs because the transcript is included in context. |
-| **JSON Action Side-Effects** | Agents output `json:action` blocks that the system executes silently (spawn agents, schedule tasks, update goals). These mutations appear in the next agent's context window. |
+| **JSON Action Side-Effects** | Agents output `json:action` blocks that the system executes silently (`SPAWN_AGENT`, `SCHEDULE_TASK`, `WRITE_FILE`, `EVOLVE_AGENT`). These mutations appear in the next agent's context window. |
 
-> **Key Insight:** Jules-Bridge is a platform connector to the Jules sandbox — it is NOT a message bus between agents.
+> **Key Insight:** Jules-Bridge is a platform connector to the local file system and sandbox — agents can now write files directly to disk via the `/api/jules/write` endpoint.
 
 ---
 
@@ -60,7 +60,10 @@ Agents do **not** talk to each other directly. Communication happens through thr
 
 `avgHealth = average of all agents' health field`
 
-The `health` field initializes at 100 and is **never dynamically reduced** by any process. The only live health signal is the **Heartbeat System**.
+The `health` field initializes at 100 and is now **dynamically updated**:
+- **Degrades** automatically when the agent misses heartbeats (status: `degraded`, `unresponsive`, or `dead`).
+- **Passively Regenerates** by +5 HP every 30 seconds as long as the agent is alive and not paused.
+- **Auto-Recovery:** Dead agents are caught by a 15-second watchdog loop that resets their heartbeat and partially restores their health, generating a system alert.
 
 ### Heartbeat System (Live)
 
@@ -103,7 +106,7 @@ Agent's personal API key → Agent's model field → Global settings (fallback)
 
 ---
 
-## ⚡ Skills System
+## ⚡ Skills & Autonomous Evolution (v2.9)
 
 | Level | Name | XP to Next | Category Colors |
 |---|---|---|---|
@@ -111,7 +114,9 @@ Agent's personal API key → Agent's model field → Global settings (fallback)
 | 2 | Apprentice | 300 | `operations` (amber), `security` (rose) |
 | 3 | Competent | 600 | `creative` (emerald), `meta` (gold, God only) |
 | 4 | Expert | 1000 | |
-| 5 | Master | MAX | |
+| 5 | Master | MAX | **Triggers Autonomous Evolution Loop** |
+
+> **The Evolution Loop:** When an agent gains enough XP to reach Level 5 (Master) in any skill, it automatically spawns an `[AUTONOMOUS EVOLUTION]` task for itself to propose an architecture refactor or tool upgrade based on its mastery.
 
 ---
 

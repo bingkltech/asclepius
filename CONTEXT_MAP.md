@@ -1,6 +1,6 @@
 # ⚕️ Asclepius — Living Context Map & System Architecture
 
-> **VERSION:** v2.8 · **LAST AUDIT:** 2026-04-17  
+> **VERSION:** v2.9 · **LAST AUDIT:** 2026-04-17  
 > **PURPOSE:** This document is the Amnesia Guard. Any AI model reading this file gains total system awareness without hallucination risk. Every claim is traced to an exact file and line range.
 
 ---
@@ -73,11 +73,11 @@ Jules-Bridge does **not** relay state between agents. It maintains a persistent 
 
 **Source of Truth:** `App.tsx → INITIAL_AGENTS[].health`
 
-The `health` field is a **static initialization value** set to 100 at boot. It is **not dynamically updated** by any running system process. The only way `health` changes is:
-- Manual edit via AgentConfig
-- Future: could be derived from heartbeat uptime + reputation
-
-> **⚠️ CONTEXT LEAK IDENTIFIED:** `agent.health` is displayed on cards but never computed from live data. It should be derived from `heartbeat.uptimePercent` and `reputation.successRate` for accuracy.
+The `health` field initializes at 100 but is now **dynamically updated** by multiple system processes:
+- **Degradation:** If the heartbeat misses beats and status becomes `degraded`, `unresponsive`, or `dead`, health is reduced (e.g., -25 for dead).
+- **Auto-Recovery:** The 15s watchdog catches `dead` agents, resets their heartbeat, and partially restores their health (+50 HP).
+- **Passive Regeneration:** Alive, non-paused agents automatically regenerate +5 HP every 30 seconds until they reach 100 HP.
+- **Reputation Tracking:** When tasks or code analysis finish, `reputation.totalTasks`, `successRate`, and `trend` are updated automatically based on completion status.
 
 ### The 99% Health Metric (Dashboard Card)
 
@@ -89,7 +89,7 @@ const avgHealth = Math.round(
 );
 ```
 
-This is a simple average of all agents' `health` field. Since all agents initialize at `health: 100` and the field is never dynamically reduced, the dashboard will always show ~100% unless manually altered.
+This is a simple average of all agents' `health` field. Since health now degrades and regenerates dynamically, this number will actually fluctuate as agents experience networking disruption or system failure.
 
 ### CPU / Memory / Latency Metrics
 
@@ -158,7 +158,8 @@ This is **actually live**. Every 3 seconds:
 2. The `systemContext` string MUST include fleet status, projects, sandbox, logs, and chat transcript — removing ANY section breaks the Lookback protocol
 3. `lastProcessedLogId` MUST be a ref, not state — using state causes infinite re-render loops
 4. The JSON action regex MUST use `json:action` (not `json` alone) to prevent false positives on normal code blocks
-5. Per-agent credential resolution via `resolveAgentSettings()` MUST happen before the God-Agent override
+5. JSON actions handled: `SCHEDULE_TASK`, `SPAWN_AGENT`, `PAUSE_AGENT`, `GRANT_SKILL`, `EVOLVE_AGENT`, `UPDATE_GOAL`, `RESOLVE_ERROR`, `WRITE_FILE`.
+6. Per-agent credential resolution via `resolveAgentSettings()` MUST happen before the God-Agent override
 
 ### 3.2 Sandbox (`Sandbox.tsx` — 32KB, 671 lines)
 
