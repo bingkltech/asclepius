@@ -110,6 +110,15 @@ const INITIAL_AGENTS: Agent[] = [
       endpoint: "wss://jules.google.com/api/v1/sandbox/god",
       status: "connected",
     },
+    credentials: {
+      email: "asclepius.god.agent@gmail.com",
+      geminiModel: "gemini-3.1-pro-preview",
+      ollamaModel: "gemma4:e4b",
+      ollamaBaseUrl: "http://localhost:11434",
+      quotaUsed: 0,
+      quotaLimit: 1500,
+      lastQuotaReset: new Date().toISOString(),
+    },
     createdBy: "system",
     isProtected: true,
   },
@@ -144,6 +153,15 @@ const INITIAL_AGENTS: Agent[] = [
       endpoint: "wss://jules.google.com/api/v1/sandbox/coo",
       status: "connected",
     },
+    credentials: {
+      email: "asclepius.coo.agent@gmail.com",
+      geminiModel: "gemini-3.1-flash-lite-preview",
+      ollamaModel: "gemma4:e4b",
+      ollamaBaseUrl: "http://localhost:11434",
+      quotaUsed: 0,
+      quotaLimit: 1500,
+      lastQuotaReset: new Date().toISOString(),
+    },
     createdBy: "system",
     isProtected: true, // COO is protected — God can pause but not terminate
   },
@@ -171,6 +189,15 @@ const INITIAL_AGENTS: Agent[] = [
       enabled: true,
       endpoint: "wss://jules.google.com/api/v1/sandbox/bridge",
       status: "syncing",
+    },
+    credentials: {
+      email: "asclepius.jules.bridge@gmail.com",
+      geminiModel: "gemini-3.1-flash-lite-preview",
+      ollamaModel: "gemma4:e4b",
+      ollamaBaseUrl: "http://localhost:11434",
+      quotaUsed: 0,
+      quotaLimit: 1500,
+      lastQuotaReset: new Date().toISOString(),
     },
     createdBy: "system",
     isProtected: false,
@@ -201,6 +228,15 @@ const INITIAL_AGENTS: Agent[] = [
       enabled: true,
       endpoint: "wss://jules.google.com/api/v1/sandbox/healer",
       status: "connected",
+    },
+    credentials: {
+      email: "asclepius.healer.01@gmail.com",
+      geminiModel: "gemini-3.1-pro-preview",
+      ollamaModel: "gemma4:e4b",
+      ollamaBaseUrl: "http://localhost:11434",
+      quotaUsed: 0,
+      quotaLimit: 1500,
+      lastQuotaReset: new Date().toISOString(),
     },
     createdBy: "system",
     isProtected: false,
@@ -299,6 +335,21 @@ export default function App() {
 
   // ─── God-Agent Boot Sequence & Tactical Hibernation ───
   useEffect(() => {
+    // Stage 0: Fleet Identity Initialization — validate all agent credentials on boot
+    const fleetBootLog: LogEntry[] = agents.map((agent) => {
+      const hasCreds = !!agent.credentials?.geminiApiKey;
+      const identity = agent.credentials?.email || "unprovisioned";
+      const provider = hasCreds ? "personal-key" : (agent.provider || "global-fallback");
+      return {
+        id: `boot-id-${agent.id}-${Date.now()}`,
+        timestamp: new Date().toLocaleTimeString(),
+        agentId: agent.name,
+        message: `[FLEET BOOT] Identity: ${identity} | Provider: ${provider} | Status: ${agent.status === "paused" ? "HIBERNATING" : "ONLINE"}`,
+        type: hasCreds ? "success" as const : "info" as const,
+      };
+    });
+    setLogs((prev) => [...fleetBootLog, ...prev].slice(0, 50));
+
     // Stage 1: Boot initialization sweep
     const bootTimer = setTimeout(() => {
       setCommandMessages((prev) => [
@@ -307,7 +358,7 @@ export default function App() {
           id: `boot-${Date.now()}`,
           role: "system",
           sender: "GOD-AGENT",
-          content: "[SYSTEM BOOT] Executing Lookback sweep: Evaluating 3 metrics, all active skills, and node heartbeat status. Core systems nominal.",
+          content: `[SYSTEM BOOT] Fleet initialized: ${agents.length} agents online. ${agents.filter(a => a.credentials?.geminiApiKey).length} with personal API keys, ${agents.filter(a => !a.credentials?.geminiApiKey).length} using global fallback. Executing Lookback sweep...`,
           timestamp: new Date().toLocaleTimeString(),
         },
       ]);
