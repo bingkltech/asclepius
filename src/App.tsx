@@ -51,6 +51,7 @@ import {
   Boxes,
   ShieldCheck,
   XCircle,
+  KeyRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -855,15 +856,22 @@ export default function App() {
     return () => clearInterval(interval);
   }, [agents]);
 
-  // Stat cards data
+  // Stat cards data — Leak #1 fix: compute health from live signals, not static field
   const activeAgentsCount = agents.filter((a) => a.status === "working").length;
   const avgHealth = Math.round(
-    agents.reduce((sum, a) => sum + a.health, 0) / agents.length
+    agents.reduce((sum, a) => {
+      // Weighted: 60% heartbeat uptime + 40% reputation success rate
+      const uptime = a.heartbeat.uptimePercent || 100;
+      const reputation = a.reputation.successRate || 100;
+      return sum + (uptime * 0.6 + reputation * 0.4);
+    }, 0) / agents.length
   );
   const avgLatency = Math.round(
     agents.reduce((sum, a) => sum + a.metrics.latency, 0) / agents.length
   );
   const aliveHeartbeats = agents.filter((a) => a.heartbeat.status === "alive").length;
+  const fleetQuotaUsed = agents.reduce((sum, a) => sum + (a.credentials?.quotaUsed || 0), 0);
+  const fleetQuotaTotal = agents.reduce((sum, a) => sum + (a.credentials?.quotaLimit || 1500), 0);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -959,6 +967,17 @@ export default function App() {
                   icon: FolderGit2,
                   gradient: "from-violet-500/10 to-violet-500/0",
                   iconColor: "text-violet-400",
+                },
+                {
+                  label: "Fleet Quota",
+                  value: `${fleetQuotaUsed}/${fleetQuotaTotal}`,
+                  sub: `${agents.length} agents × free tier`,
+                  subColor: fleetQuotaUsed / fleetQuotaTotal > 0.9 ? "text-rose-400" : "text-sky-400",
+                  icon: KeyRound,
+                  gradient: "from-sky-500/10 to-sky-500/0",
+                  iconColor: "text-sky-400",
+                  hasBar: true,
+                  barValue: Math.min(100, Math.round((fleetQuotaUsed / fleetQuotaTotal) * 100)),
                 },
               ].map((stat) => (
                 <div

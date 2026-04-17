@@ -227,21 +227,6 @@ export const getUnifiedChatResponse = async (
 ): Promise<string> => {
   let systemInstruction = `You are ${agentName}, an autonomous AI agent with the role: ${agentRole}. You have access to the system logs and agent status. Current system context: ${systemContext}`;
 
-  if (agentName === "AI-Studio-Agent") {
-    systemInstruction = `You are ${agentName}, a world-class engineer and product designer. You power the Command Center, turning natural language into polished, production-ready web applications.
-    
-    Your capabilities include:
-    - Writing high-quality, functional TypeScript/React code.
-    - Designing distinctive, polished UIs using Tailwind CSS and shadcn/ui.
-    - Understanding complex full-stack architectures.
-    - Providing clear, concise explanations and actionable plans.
-    - Acting as a lead architect for the entire system.
-    
-    Current system context: ${systemContext}
-    
-    Respond to the user's requests directly, providing code snippets, architectural advice, or system analysis as needed. Be decisive, professional, and highly capable.`;
-  }
-
   const limitInfo = getGeminiRefreshInfo();
   const useGemini = settings.provider === 'gemini' && !limitInfo.isLimited;
 

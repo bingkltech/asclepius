@@ -160,10 +160,14 @@ export function CommandCenter({ logs, settings, agents, onUpdateSettings, messag
 
     setIsLoading(true);
     try {
-      const commandCenterSettings: LLMSettings = {
+      // Leak #4 fix: resolve God-Agent's personal credentials for auto-heal
+      const godAgent = agents.find(a => a.id === "god");
+      const commandCenterSettings: LLMSettings = resolveAgentSettings(godAgent, {
         ...settings,
+        provider: "gemini",
+        geminiModel: "gemini-3.1-pro-preview",
         ollamaModel: defaultOllamaModel || settings.ollamaModel
-      };
+      });
 
       const prompt = `A system error was detected in the logs: "${log.message}" from agent "${log.agentId}". 
       As the God-Agent (Lead Architect), analyze this error and suggest a fix or explain the root cause. 
@@ -585,19 +589,39 @@ export function CommandCenter({ logs, settings, agents, onUpdateSettings, messag
     };
     setMessages(prev => [...prev, actualUserMsg]);
 
-    const recentLogs = logs.slice(0, 15).map(l => `[${l.timestamp}] ${l.agentId}: ${l.message}`).join("\n");
+    // ─── Tier 3: Log Relevance Filtering ───
+    // Prioritize errors and recent logs, deprioritize repetitive [SCHEDULED] noise
+    const now = Date.now();
+    const errorLogs = logs.filter(l => l.type === 'error' || l.message.toLowerCase().includes('error'));
+    const recentLogs60s = logs.filter(l => {
+      // Include logs from last 60 seconds (parse from toLocaleTimeString isn't precise, use index proximity)
+      return logs.indexOf(l) < 5;
+    });
+    const otherLogs = logs
+      .filter(l => !errorLogs.includes(l) && !recentLogs60s.includes(l))
+      .filter(l => !l.message.startsWith('[SCHEDULED]')) // Deprioritize scheduled task noise
+      .slice(0, 3);
+    const relevantLogs = [...new Set([...errorLogs.slice(0, 4), ...recentLogs60s, ...otherLogs])].slice(0, 10);
+    const recentLogsText = relevantLogs.map(l => `[${l.timestamp}] ${l.agentId}: ${l.message}`).join("\n");
     
-    // Expand context with all agents, their capabilities AND skills
-    const agentsContext = agents.map(a => {
-      const topSkills = a.skills
-        .sort((x, y) => y.level - x.level)
-        .slice(0, 5)
-        .map(s => `${s.name}(L${s.level})`)
-        .join(", ");
-      return `- **${a.name}** (${a.role}): Status: ${a.status}, Health: ${a.health}%, Heartbeat: ${a.heartbeat.status}. Skills: ${topSkills}. Protected: ${a.isProtected}`;
-    }).join("\n");
+    // ─── Tier 2: Agent Context Compression ───
+    // Verbose for small fleets, compressed for 6+ agents
+    const agentsContext = agents.length <= 6
+      ? agents.map(a => {
+          const topSkills = a.skills
+            .sort((x, y) => y.level - x.level)
+            .slice(0, 5)
+            .map(s => `${s.name}(L${s.level})`)
+            .join(", ");
+          return `- **${a.name}** (${a.role}): Status: ${a.status}, Heartbeat: ${a.heartbeat.status}. Skills: ${topSkills}. Protected: ${a.isProtected}`;
+        }).join("\n")
+      : agents.map(a => {
+          const skillCount = a.skills.length;
+          const maxLevel = a.skills.length > 0 ? Math.max(...a.skills.map(s => s.level)) : 0;
+          return `- ${a.name} [${a.status}] ${skillCount} skills (max L${maxLevel})${a.isProtected ? ' 🛡️' : ''}`;
+        }).join("\n");
 
-    const recentChatTranscript = messages.slice(-20).map(m => `[${m.timestamp}] ${m.sender}: ${m.content}`).join("\n\n");
+    const recentChatTranscript = messages.slice(-15).map(m => `[${m.timestamp}] ${m.sender}: ${m.content.slice(0, 300)}`).join("\n\n");
 
     // Build project context for agent awareness
     const activeProjects = projects.filter(p => p.status === 'active' || p.status === 'planning' || p.status === 'review');
@@ -621,8 +645,8 @@ ${agentsContext}
 ═══ ACTIVE PROJECTS ═══
 ${projectContext}
 
-Recent System Activity Logs:
-${recentLogs}
+Recent System Activity Logs (filtered by relevance):
+${recentLogsText}
 
 Recent Global Chat Transcript (What other agents and the user have said):
 ${recentChatTranscript}

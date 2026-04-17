@@ -4,7 +4,7 @@
  */
 
 import { useState } from "react";
-import { getUnifiedCodeAnalysis } from "@/src/services/llm";
+import { getUnifiedCodeAnalysis, resolveAgentSettings } from "@/src/services/llm";
 import { CodeAnalysis, LLMSettings, Project, SandboxRun, SandboxError as SandboxErrorType, Agent } from "@/src/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -147,7 +147,10 @@ export function Sandbox({ settings, projects = [], agents = [], sandboxRuns = []
     setCurrentRun(run);
 
     try {
-      const analysis = await getUnifiedCodeAnalysis(settings, code);
+      // Leak #6 fix: Use Healer-01's personal credentials for analysis
+      const healerAgent = agents.find(a => a.id === "a3" || a.name === "Healer-01");
+      const analysisSettings = resolveAgentSettings(healerAgent, settings);
+      const analysis = await getUnifiedCodeAnalysis(analysisSettings, code);
       const errors = parseErrors(analysis);
       const hasCritical = errors.some(e => e.severity === "critical");
       const hasWarning = errors.some(e => e.severity === "warning");

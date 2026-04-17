@@ -216,14 +216,14 @@ This is **actually live**. Every 3 seconds:
 
 ### Context Leaks Identified
 
-| # | Leak | Location | Impact |
+| # | Leak | Location | Status |
 |---|---|---|---|
-| 1 | **`agent.health` is never computed** | `App.tsx` INITIAL_AGENTS | Dashboard "Avg Health" is always ~100%, misleading |
-| 2 | **Metrics are random walks, not real** | `App.tsx` lines 855-878 | CPU/Memory/Latency don't reflect actual usage |
-| 3 | **`createSkill()` duplicated** | `App.tsx` (line 76) AND `CommandCenter.tsx` (line ~50) | Two identical function definitions — should be in `types.ts` |
-| 4 | **Auto-heal doesn't use per-agent creds** | `CommandCenter.tsx` line 182-184 | `handleAutoHeal` uses global settings, not God-Agent's credentials |
-| 5 | **`AI-Studio-Agent` dead code** | `llm.ts` line 230 | Special-cased system instruction for an agent that doesn't exist in INITIAL_AGENTS |
-| 6 | **Sandbox doesn't use per-agent creds** | `Sandbox.tsx` line 150 | `getUnifiedCodeAnalysis(settings, code)` uses global settings, not the agent being routed to |
+| 1 | **`agent.health` was never computed** | `App.tsx` stat cards | ✅ **FIXED** — now `60% heartbeat.uptimePercent + 40% reputation.successRate` |
+| 2 | **Metrics are random walks, not real** | `App.tsx` lines 855-878 | 📋 By design (simulation mode) |
+| 3 | **`createSkill()` duplicated** | `App.tsx` AND `CommandCenter.tsx` | ✅ **FIXED** — consolidated to `types.ts`, both files import |
+| 4 | **Auto-heal didn't use per-agent creds** | `CommandCenter.tsx` handleAutoHeal | ✅ **FIXED** — now resolves God-Agent's credentials via `resolveAgentSettings()` |
+| 5 | **`AI-Studio-Agent` dead code** | `llm.ts` getUnifiedChatResponse | ✅ **FIXED** — removed (agent never existed in INITIAL_AGENTS) |
+| 6 | **Sandbox didn't use per-agent creds** | `Sandbox.tsx` handleAnalyze | ✅ **FIXED** — now resolves Healer-01's credentials for analysis |
 
 ### Proposed Fix for Leak #3: `createSkill()` Consolidation
 
@@ -278,42 +278,42 @@ When adding skills (via spawn, grant, or config), the following schema MUST be e
 ### Context Window Management
 
 **Current state:** The system context string injected per-LLM-call includes:
-- All agents (currently 4, but scales with spawns)
+- All agents (verbose for ≤6, compressed for 7+)
 - All active projects (unbounded)
 - Last 5 sandbox runs
-- Last 15 log entries
-- Recent chat transcript (last ~10-20 messages)
+- Last 10 log entries (relevance-filtered)
+- Recent chat transcript (last 15 messages, truncated to 300 chars each)
 
 **Problem:** As the fleet grows to 10+ agents and 5+ projects, the context string will exceed 8KB — consuming significant portions of the model's context window and degrading response quality.
 
 ### Context Pruning Protocol
 
-#### Tier 1: Automatic Caps (Already Implemented)
+#### Tier 1: Automatic Caps (Implemented)
 | Data | Cap | Location |
 |---|---|---|
-| System logs | 50 entries in memory, 15 injected | `App.tsx` line 316, `CommandCenter.tsx` line ~636 |
-| Chat messages | 100 in localStorage | `App.tsx` line 317 |
-| Sandbox runs | 50 in localStorage, 5 injected | `App.tsx` line 338, `CommandCenter.tsx` line ~650 |
+| System logs | 50 entries in memory, 10 relevance-filtered | `App.tsx` line 316, `CommandCenter.tsx` |
+| Chat messages | 100 in localStorage, 15 injected (300 char cap) | `App.tsx` line 317 |
+| Sandbox runs | 50 in localStorage, 5 injected | `App.tsx` line 338, `CommandCenter.tsx` |
 
-#### Tier 2: Agent Context Compression (Recommended)
+#### Tier 2: Agent Context Compression (✅ Implemented)
 
-When fleet exceeds 6 agents, compress agent context:
+When fleet exceeds 6 agents, automatic compression activates:
 ```
-// CURRENT (verbose):
-"- **God-Agent** (Lead Architect): Status: paused, Health: 100%.
-   Skills: System Architecture(L5), Self-Healing(L5), Self-Evolution(L5)..."
+// VERBOSE (≤6 agents):
+"- **God-Agent** (Lead Architect): Status: paused, Heartbeat: alive.
+   Skills: System Architecture(L5), Self-Healing(L5)..."
 
-// COMPRESSED (for 10+ agents):
-"- God-Agent [paused] L5×8 skills | COO-Agent [working] L4×5 | ..."
+// COMPRESSED (7+ agents):
+"- God-Agent [paused] 8 skills (max L5) 🛡️"
 ```
 
-#### Tier 3: Log Relevance Filtering (Recommended)
+#### Tier 3: Log Relevance Filtering (✅ Implemented)
 
 Instead of injecting the last 15 logs blindly:
-1. Always include logs from the last 60 seconds
-2. Always include logs with `type: 'error'`
-3. Deprioritize repetitive `[SCHEDULED]` task logs
-4. Cap at 10 entries total (reduced from 15)
+1. ✅ Always include the 5 most recent logs
+2. ✅ Always include logs with `type: 'error'` (up to 4)
+3. ✅ Deprioritize repetitive `[SCHEDULED]` task logs
+4. ✅ Cap at 10 entries total (reduced from 15)
 
 #### Tier 4: Project Context Scoping (Recommended)
 
