@@ -1,204 +1,173 @@
-# 🤖 Agent Fleet
+# 🤖 Agent Fleet — Context Document
 
-> *The autonomous workforce operating under the God-Agent's directive.*
+> **PURPOSE:** This file is the single-source-of-truth for the Asclepius Agent Fleet architecture. It provides the fleet overview, the shared type system, lifecycle mechanics, and links to individual agent context documents. Any AI model reading this file gains complete fleet awareness.
 
-## Agent Hierarchy
+---
 
-Asclepius operates a **strict hierarchical command structure**. The God-Agent sits at the apex; all other agents are worker-class entities with scoped roles and limited authority.
+## Fleet Hierarchy
 
 ```
-                    GOD-AGENT (Apex)
+                    GOD-AGENT (Apex) 👑
                     ┌───────────┐
                     │ Absolute  │
                     │ Authority │
+                    │ gemini-pro│
                     └─────┬─────┘
                           │
           ┌───────────────┼───────────────┐
           │               │               │
     COO-Agent       Jules-Bridge      Healer-01
     Operations      Integration       Repair
-    Layer           Layer             Layer
+    gemma4 (local)  flash-lite        gemini-pro
+    🛡️ Protected     Terminable        Terminable
 ```
 
-> ⚠️ **The God-Agent is documented separately.** See [`GOD_AGENT.md`](../GOD_AGENT.md) for its complete architecture. This document covers the **worker agents only**.
+> ⚠️ **Each agent has its own detailed context document.** This file covers fleet-level architecture only.
 
 ---
 
-## Worker Agent Registry
+## Agent Registry (Quick Reference)
 
-### COO-Agent — Chief Operating Officer
+| Agent | ID | Model | Provider | Budget | Protected | Context Doc |
+|---|---|---|---|---|---|---|
+| **God-Agent** | `god` | `gemini-3.1-pro-preview` | Gemini (→Ollama) | 500K/day | ✅ | [GOD_AGENT.md](../GOD_AGENT.md) |
+| **COO-Agent** | `coo` | `gemma4` | Ollama | 200K/day | ✅ | [COO_AGENT.md](COO_AGENT.md) |
+| **Jules-Bridge** | `a2` | `gemini-3.1-flash-lite-preview` | Gemini | 100K/day | ❌ | [JULES_BRIDGE.md](JULES_BRIDGE.md) |
+| **Healer-01** | `a3` | `gemini-3.1-pro-preview` | Gemini | 200K/day | ❌ | [HEALER_AGENT.md](HEALER_AGENT.md) |
 
-| Property | Value |
-|---|---|
-| **ID** | `coo` |
-| **Role** | Chief Operating Officer |
-| **Model** | `gemma4` (Ollama local) |
-| **Provider** | Ollama |
-| **Purpose** | Orchestrating agent workflows, task scheduling, resource management |
-
-**Capabilities:**
-- Orchestration
-- Task Scheduling
-- Resource Management
-- System Analysis
-
-**Design Rationale:** The COO runs on a local Ollama model intentionally. It handles high-frequency orchestration tasks that don't require the raw power of Gemini Pro, keeping API costs low and latency minimal.
-
----
-
-### Jules-Bridge — Platform Connector
-
-| Property | Value |
-|---|---|
-| **ID** | `a2` |
-| **Role** | Platform Connector |
-| **Model** | `gemini-3.1-flash-lite-preview` |
-| **Provider** | Gemini |
-| **Purpose** | Syncing with the Jules sandbox, API integration, maintaining sandbox sessions |
-
-**Capabilities:**
-- API Integration
-- Sandbox Management
-
-**Design Rationale:** Jules-Bridge uses Flash Lite for fast, lightweight API calls to the Jules platform. It acts as the bridge between Asclepius and external Google services. Its status often shows `syncing` because it maintains a continuous WebSocket connection.
-
----
-
-### Healer-01 — Code Repair Specialist
-
-| Property | Value |
-|---|---|
-| **ID** | `a3` |
-| **Role** | Code Repair Specialist |
-| **Model** | `gemini-3.1-pro-preview` |
-| **Provider** | Gemini |
-| **Purpose** | Analyzing code for bugs, suggesting improvements, refactoring, and deep analysis |
-
-**Capabilities:**
-- Code Analysis
-- Refactoring
-- Bug Detection
-
-**Design Rationale:** Healer-01 uses the same powerful Pro model as the God-Agent because code analysis requires deep reasoning. It is the **only** agent that can be targeted directly via the `/analyze` and `/fix` commands. When Healer-01 is invoked, it returns structured JSON analysis results (bugs, suggestions, explanation, refactored code).
+> **Dynamically spawned agents** (via God-Agent's `SPAWN_AGENT` action) do not have pre-written context docs. Their identity is defined at spawn time.
 
 ---
 
 ## The Agent Type System
 
-All agents share the same TypeScript interface, defined in `types.ts`:
+All agents share the same TypeScript interface, defined in `src/types.ts`:
 
 ```typescript
 interface Agent {
-  id: string;                    // Unique identifier
+  id: string;                    // Unique identifier ("god", "coo", "a2", "a3")
   name: string;                  // Display name
   role: string;                  // Job description
-  status: AgentStatus;           // idle | working | healing | learning | error
+  status: AgentStatus;           // idle | working | healing | learning | error | paused
   lastAction: string;            // Most recent action description
   health: number;                // 0-100 percentage
-  capabilities: string[];        // List of capabilities
+  capabilities: string[];        // Broad categories
+  skills: AgentSkill[];          // Granular leveled competencies (1-5)
+  heartbeat: AgentHeartbeat;     // Liveness monitoring (interval, missed beats, sparkline)
+  budget: AgentBudget;           // { dailyTokenLimit, dailyTokensUsed, priority, overage }
+  reputation: AgentReputation;   // { successRate, totalTasks, failedTasks, trend }
   metrics: AgentMetrics;         // { cpu, memory, latency }
   provider?: LLMProvider;        // 'gemini' | 'ollama'
-  model?: string;                // Model identifier
-  julesConfig?: JulesConfig;     // Jules sandbox connection
+  model?: string;                // Model identifier string
+  julesConfig?: JulesConfig;     // Jules sandbox WebSocket connection
+  createdBy: 'system' | 'god';  // Who spawned this agent
+  isProtected: boolean;          // Cannot be terminated
+  delegations?: Delegation[];    // Delegated authority from God-Agent
 }
 ```
 
-### Agent Statuses
+---
 
-| Status | Icon | Color | Meaning |
+## Agent Statuses
+
+| Status | Meaning | Visual |
+|---|---|---|
+| `idle` | Standby, waiting for commands | Muted icon |
+| `working` | Actively executing a task | Yellow pulse |
+| `healing` | Performing self-repair | Red bounce |
+| `learning` | Analyzing patterns, training | Blue glow |
+| `error` | Critical failure state | Red alert |
+| `paused` | Tactical hibernation (alive but dormant) | Amber dim |
+
+---
+
+## Heartbeat System
+
+Every agent emits periodic liveness signals:
+
+| Agent | Interval | Max Missed | Reason |
 |---|---|---|---|
-| `idle` | Activity | Muted | Agent is standby, waiting for commands |
-| `working` | Zap (pulsing) | Yellow | Actively executing a task |
-| `healing` | ShieldAlert (bouncing) | Red | Performing self-repair |
-| `learning` | Brain | Blue | Analyzing patterns, training |
-| `error` | ShieldAlert | Destructive | Critical failure state |
+| God-Agent | 5s | 5 | Critical — faster pulse, higher tolerance |
+| All Workers | 10s | 3 | Standard monitoring |
+
+**Degradation cascade:** Alive → Degraded (1 miss) → Unresponsive (2+ miss) → Dead (max miss exceeded)
 
 ---
 
-## The AgentCard Component
+## Skills System
 
-**File:** `AgentCard.tsx`
+Skills are leveled competencies (1-5):
 
-Each agent is rendered through the `AgentCard` component, which provides:
+| Level | Name | XP to Next |
+|---|---|---|
+| 1 | Novice | 100 XP |
+| 2 | Apprentice | 300 XP |
+| 3 | Competent | 600 XP |
+| 4 | Expert | 1000 XP |
+| 5 | Master | MAX |
 
-### Visual Display
-- Name, role, and status badge
-- Health bar with animated fill (via Motion)
-- Real-time CPU, Memory, and Latency metrics
-- AI engine badge (Gemini/Ollama + model name)
-- Jules Bridge connection indicator with animated ping dot
-- Capability badges
-
-### Agent Configuration Dialog
-Hover over any agent card to reveal:
-- **⚙️ Settings** — Edit capabilities, AI provider, and model
-- **📜 History** — Review all commands and responses specific to this agent, with search
-
-### History System
-The history dialog filters `ChatMessage[]` by `targetAgentId`, showing:
-- User commands directed at this agent
-- Agent responses with full markdown rendering
-- Searchable via text filter
-- Chronological ordering
+**Skill Categories:** `engineering` (violet), `analysis` (sky), `operations` (amber), `security` (rose), `creative` (emerald), `meta` (gold, God-Agent only)
 
 ---
 
-## Agent Simulation Loop
+## Token Budget System
 
-**File:** `App.tsx` → `useEffect` (lines 216-262)
-
-Agents don't just sit idle. An 8-second heartbeat cycle simulates continuous activity:
-
-```
-Every 8 seconds:
-    1. Pick a random agent
-    2. Assign a random status (idle, working, learning)
-    3. Generate an action description via Gemini Flash Lite
-    4. Log the action to the system-wide log stream
-    5. Fluctuate CPU/Memory/Latency metrics (±random delta)
-    6. 10% chance: display a toast notification
-```
-
-This creates a living, breathing agent ecosystem where the dashboard always shows movement and activity.
-
----
-
-## Adding New Agents
-
-To add a new agent to the fleet:
-
-1. Add a new entry to `INITIAL_AGENTS` in `App.tsx`:
+Each agent has a daily token budget that controls workload distribution:
 
 ```typescript
-{
-  id: "your-agent-id",
-  name: "Agent-Name",
-  role: "Specialized Role Description",
-  status: "idle",
-  lastAction: "Initializing...",
-  health: 100,
-  capabilities: ["Capability 1", "Capability 2"],
-  metrics: { cpu: 5, memory: 1024, latency: 20 },
-  provider: "gemini",        // or "ollama"
-  model: "gemini-3.1-pro-preview",
-  julesConfig: {
-    enabled: true,
-    endpoint: 'wss://jules.google.com/api/v1/sandbox/your-agent',
-    status: 'connected'
-  }
+interface AgentBudget {
+  dailyTokenLimit: number;    // Max tokens per day
+  dailyTokensUsed: number;   // Current usage
+  priority: 'critical' | 'high' | 'normal' | 'low';
+  overage: 'block' | 'warn' | 'allow';
 }
 ```
 
-2. The agent will automatically appear in:
-   - Dashboard → Managed Agents grid
-   - Agents tab → Agent Fleet grid
-   - Command Center → Targetable via `Agent-Name: [command]`
-   - Task Scheduler → Available for scheduling
+The Sandbox's `findBestAgent()` applies:
+- **Hard Block:** Agents at 100% utilization with `overage: "block"` are skipped entirely.
+- **Soft Penalty:** Agents approaching limits receive up to 50% score reduction.
 
 ---
 
-## Related Documentation
+## Spawning New Agents
 
-- [God-Agent](../GOD_AGENT.md) — The supreme agent that sits above this fleet
-- [Command Center](COMMAND_CENTER.md) — How agents receive and respond to commands
-- [AI Services](../services/SERVICES.md) — The LLM backends that power agent intelligence
+### Via God-Agent JSON Action (Autonomous)
+```json
+{ "type": "SPAWN_AGENT", "payload": { "name": "Data-Miner", "role": "Data Collection", "skills": ["Web Scraping", "Python"] } }
+```
+
+### Via Code (`App.tsx → INITIAL_AGENTS`)
+Add a new entry to the array. The agent auto-appears in Dashboard, Agents tab, Command Center, and Task Scheduler.
+
+---
+
+## Persistence
+
+- All agent state persists in `localStorage` under key `asclepius_agents`.
+- On page reload, the system loads from localStorage first, falling back to `INITIAL_AGENTS`.
+- This means skill grants, status changes, and spawned agents survive browser restarts.
+
+---
+
+## File References
+
+| File | What It Contains |
+|---|---|
+| `src/App.tsx` | `INITIAL_AGENTS[]` array, `createSkill()`, `createHeartbeat()` |
+| `src/types.ts` | All agent-related interfaces |
+| `src/components/AgentCard.tsx` | Agent card UI, health bars, sparklines, skill badges |
+| `src/components/AgentConfig.tsx` | Agent configuration dialog (edit capabilities, model, provider) |
+| `src/components/CommandCenter.tsx` | Agent routing, system context injection, JSON action parsing |
+| `src/components/Sandbox.tsx` | `findBestAgent()` — skill-based error-to-agent routing |
+| `src/components/TaskScheduler.tsx` | Agent task assignment and scheduling |
+
+---
+
+## Per-Agent Context Documents
+
+For detailed context on each agent (designed to be fed directly to an AI model):
+
+- [GOD_AGENT.md](../GOD_AGENT.md) — God-Agent: Apex authority, self-healing, dual-core routing
+- [COO_AGENT.md](COO_AGENT.md) — COO-Agent: Operations, delegation, task decomposition
+- [HEALER_AGENT.md](HEALER_AGENT.md) — Healer-01: Code analysis, repair, Sandbox integration
+- [JULES_BRIDGE.md](JULES_BRIDGE.md) — Jules-Bridge: WebSocket sync, platform connector

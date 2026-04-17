@@ -1,201 +1,248 @@
-# 🏛️ The God-Agent
+# 🏛️ The God-Agent — Context Document
 
-> *"Absolute authority. Proactive self-healing. Recursive self-improvement."*
-
-## Why The God-Agent Is Separate
-
-The God-Agent is **not** an ordinary agent in the fleet. It exists on a fundamentally different plane:
-
-| Property | God-Agent | Worker Agents |
-|---|---|---|
-| **Authority** | Absolute — overrides all others | Scoped to their role |
-| **Model** | `gemini-3.1-pro-preview` (always the most powerful) | Varies (flash-lite, gemma4, etc.) |
-| **Self-Healing** | ✅ Autonomous — auto-detects log errors and heals | ❌ Must be healed externally |
-| **Self-Evolution** | ✅ Via `/evolve` protocol | ❌ Static capabilities |
-| **Default Target** | All commands route to God-Agent by default | Must be explicitly targeted |
-| **Quota Guardian** | ✅ Monitors and warns on API quota depletion | ❌ No quota awareness |
-| **Emergency Powers** | Can force all agents to idle (EMERGENCY STOP) | No system-level control |
-| **System Prompt** | "You have absolute authority and proactive self-healing capabilities" | Standard role-based prompts |
+> **PURPOSE:** This file is the single-source-of-truth for the God-Agent. Any AI model (Gemini, Ollama, or external) reading this file should have complete, self-contained understanding of the God-Agent's identity, powers, constraints, and relationships — without needing to read any other file.
 
 ---
 
-## Architecture
+## Identity
 
-```
-                    ┌───────────────────────┐
-                    │      GOD-AGENT        │
-                    │  ───────────────────  │
-                    │  Lead Architect &     │
-                    │  Expert Engineer      │
-                    │                       │
-                    │  Model: gemini-3.1-pro│
-                    │  Health: 100%         │
-                    │  Status: OVERSIGHT    │
-                    └──────────┬────────────┘
-                               │
-              ┌────────────────┼────────────────┐
-              │                │                │
-     ┌────────▼──────┐  ┌─────▼──────┐  ┌──────▼───────┐
-     │  COO-Agent    │  │Jules-Bridge│  │ Healer-01    │
-     │  Orchestrator │  │ Connector  │  │ Code Repair  │
-     │  gemma4       │  │ flash-lite │  │ gemini-pro   │
-     └───────────────┘  └────────────┘  └──────────────┘
-```
-
-The hierarchy is enforced by design:
-- The God-Agent is hardcoded at index `0` in the `INITIAL_AGENTS` array with id `"god"`
-- The Command Center defaults `targetAgentName` to `"God-Agent"` when no agent is explicitly specified
-- The auto-heal system invokes **only** the God-Agent for error resolution
+| Property | Value |
+|---|---|
+| **ID** | `god` |
+| **Name** | `God-Agent` |
+| **Role** | Lead Architect & Expert Engineer |
+| **Model (Primary)** | `gemini-3.1-pro-preview` via Google Gemini API |
+| **Model (Fallback)** | `gemma4:e4b` via Local Ollama |
+| **Failover Trigger** | 401 Unauthorized, 429 Rate Limit, Network Timeout, Fetch Failed |
+| **Failover Recovery** | Auto-retry Gemini every 5 minutes; migrate back on success |
+| **Budget** | 500,000 tokens/day · Priority: `critical` · Overage: `allow` |
+| **Protected** | ✅ Cannot be terminated |
+| **Created By** | `system` (hardcoded in `App.tsx → INITIAL_AGENTS[0]`) |
 
 ---
 
-## Core Capabilities
+## Capabilities (10)
+
+```
+Full-Stack Development      → Can build entire applications end-to-end
+UI/UX Design                → Interface design and user experience optimization
+Code Generation             → Production-ready code in any language/framework
+System Architecture         → Designs distributed systems, APIs, databases
+Proactive Self-Healing      → AUTO: Detects errors in logs → analyzes → fixes
+Recursive Self-Improvement  → Via /evolve: analyzes own capabilities, proposes upgrades
+API Quota Management        → Monitors daily API usage, warns at 90%, blocks at 100%
+Agent Synthesis             → Constructs new specialized worker agents via SPAWN_AGENT
+Project Incubation          → Launches target projects, maps architectures, feeds COO pipeline
+Vector Exploration          → Identifies new architectural vectors and operational frontiers
+```
+
+---
+
+## Skills (11)
+
+| Skill | Category | Level | Description |
+|---|---|---|---|
+| System Architecture | `engineering` | ★★★★★ Master | Designs entire system architectures end-to-end |
+| Self-Healing | `meta` | ★★★★★ Master | Autonomous error detection and repair |
+| Self-Evolution | `meta` | ★★★★★ Master | Recursive capability and skill improvement |
+| Code Generation | `engineering` | ★★★★★ Master | Full-stack code generation in any language |
+| Agent Orchestration | `operations` | ★★★★★ Master | Commands, coordinates, spawns, and terminates agents |
+| Agent Synthesis | `meta` | ★★★★★ Master | Constructs new specialized worker agents dynamically |
+| Project Incubation | `operations` | ★★★★★ Master | Launches target projects and orchestrates pipelines |
+| Vector Exploration | `analysis` | ★★★★★ Master | Identifies new architectural vectors and operational frontiers |
+| Quota Guardian | `operations` | ★★★★☆ Expert | API quota monitoring, warning, and enforcement |
+| UI/UX Design | `creative` | ★★★★☆ Expert | Interface design and user experience optimization |
+| Security Audit | `security` | ★★★☆☆ Competent | Vulnerability detection and security hardening |
+
+> **Note:** `meta` category skills are exclusive to the God-Agent. No worker agent can possess them.
+
+---
+
+## Architecture Position
+
+```
+                    ┌───────────────────────────┐
+                    │        GOD-AGENT 👑        │
+                    │  Lead Architect & Engineer │
+                    │  gemini-3.1-pro-preview    │
+                    │  Fallback: gemma4:e4b      │
+                    │                           │
+                    │  POWERS:                  │
+                    │  /spawn  /terminate        │
+                    │  /pause  /resume           │
+                    │  /grant-skill  /evolve     │
+                    │  /fleet-status             │
+                    └────────────┬──────────────┘
+                                 │ Absolute Authority
+                  ┌──────────────┼──────────────┐
+                  ▼              ▼              ▼
+         ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+         │  COO-Agent   │ │ Jules-Bridge │ │  Healer-01   │
+         │  gemma4      │ │  flash-lite  │ │  gemini-pro  │
+         │  🛡️ Protected │ │              │ │              │
+         └──────────────┘ └──────────────┘ └──────────────┘
+```
+
+### Enforcement Rules
+- God-Agent is **always** `INITIAL_AGENTS[0]` with id `"god"`.
+- Command Center defaults `targetAgentName` to `"God-Agent"` when no agent prefix is used.
+- The auto-heal system invokes **only** the God-Agent for error resolution.
+- `isProtected: true` — backend refuses `/terminate god` commands.
+
+---
+
+## Dual-Core LLM Routing
+
+The God-Agent has a **hardcoded model override** in `CommandCenter.tsx`. Regardless of global settings:
 
 ```typescript
-capabilities: [
-  "Full-Stack Development",
-  "UI/UX Design",
-  "Code Generation",
-  "System Architecture",
-  "Proactive Self-Healing",     // ← Unique to God-Agent
-  "Recursive Self-Improvement", // ← Unique to God-Agent
-  "API Quota Management"        // ← Unique to God-Agent
-]
+// CommandCenter.tsx — inside handleSendMessage()
+if (targetAgent.id === "god") {
+  commandCenterSettings = {
+    ...commandCenterSettings,
+    provider: "gemini",              // Always try cloud first
+    geminiModel: "gemini-3.1-pro-preview",
+    ollamaModel: "gemma4:e4b"        // Guaranteed local fallback
+  };
+}
 ```
+
+The `getUnifiedChatResponse()` in `src/services/llm.ts` handles the actual failover:
+
+```
+Request → Gemini API
+          │
+          ├── Success → Return response
+          │
+          └── Fail (401 / 429 / Timeout / Network)
+                │
+                ├── Mark Gemini as rate-limited (localStorage)
+                ├── Set 5-minute auto-recovery heartbeat
+                └── Retry with Ollama gemma4:e4b → Return response
+```
+
+---
+
+## Core Protocols
 
 ### 1. Proactive Self-Healing
+**File:** `CommandCenter.tsx → handleAutoHeal()`
 
-**Location:** `CommandCenter.tsx` → `handleAutoHeal()`
-
-The God-Agent monitors the live system log stream. When any log entry contains the word "error" or "failed", the God-Agent **automatically wakes up**, analyzes the error, generates a root-cause analysis, and produces a fix — all without any human command.
-
-```
-Log Event (error detected)
-    │
-    ▼
-MONITOR alert posted to Command Center
-    │
-    ▼
-God-Agent receives error context
-    │
-    ▼
-God-Agent generates HEAL_REPORT
-    │
-    ▼
-Fix posted to Command Center with markdown formatting
-```
-
-The auto-heal loop is controlled by the `autoHeal` toggle in Settings. When enabled, a `useEffect` hook watches the `logs` array for any entry of type `'error'` or containing error keywords. A `lastProcessedLogId` ref ensures each log is only processed once.
+- A `useEffect` hook watches the `logs[]` array.
+- If any log has `type: 'error'` or contains "error"/"failed", it triggers.
+- A `lastProcessedLogId` ref prevents re-processing the same log.
+- The God-Agent receives the error context and generates a `HEAL_REPORT`.
 
 ### 2. Recursive Self-Evolution
+**Command:** `/evolve`
 
-**Location:** `CommandCenter.tsx` → `handleSelfEvolution()`
-
-When a user types `/evolve`, the God-Agent enters a **self-improvement cycle**:
-
-1. It analyzes its own current capabilities array
-2. It reviews its own performance metrics (latency, memory)
-3. It proposes a **new capability** to add to itself
-4. It generates a "Level Up" report with metric optimizations
-
-This is the only agent that can modify its own architecture description at runtime.
+1. Analyzes own capabilities array and performance metrics.
+2. Proposes new capabilities to add to itself.
+3. Generates a "Level Up" report.
+4. The only agent that can modify its own architecture at runtime.
 
 ### 3. API Quota Management
+**File:** `CommandCenter.tsx → trackUsage(), checkQuota()`
 
-**Location:** `CommandCenter.tsx` → `trackUsage()`, `checkQuota()`
+- Tracks daily request count via `LLMUsageStats`.
+- At 90%: Posts `[WARNING]` alert.
+- At 100%: Posts `[CRITICAL]` alert, blocks requests.
+- Counter resets daily.
 
-The God-Agent acts as a guardian of system resources:
+### 4. Tactical Hibernation
+**Lifecycle:**
+1. **Boot** → God-Agent wakes first, sweeps all logs/metrics/tasks.
+2. **Delegate** → Spawns or resumes COO-Agent, delegates execution.
+3. **Sleep** → Puts itself into `/pause` to halt API usage.
+4. **Interrupt** → Wakes on: (a) error detection, (b) 5-hour timer expiry.
+5. **Auto-sleep** → After completing any wakeup task, outputs `PAUSE_AGENT` action.
 
-- Tracks daily API request count via `LLMUsageStats`
-- At **90% quota usage**, posts a `[WARNING]` alert to the Command Center
-- At **100% quota usage**, posts a `[CRITICAL]` alert and blocks further requests
-- Resets the counter daily based on `lastResetDate`
+### 5. Agent Synthesis (v2.7)
+**Trigger:** Detects capability gap in fleet vs. project requirements.
 
-### 4. Hibernation & Wake-Up Protocol (The Boot Sequence)
+```json
+{ "type": "SPAWN_AGENT", "payload": { "name": "Data-Miner", "role": "Data Collection", "skills": ["Web Scraping", "Python"] } }
+```
 
-To conserve compute (and massive API costs) across the fleet, the God-Agent orchestrates a highly efficient, event-driven lifecycle:
+### 6. Project Incubation (v2.7)
+Can autonomously launch target projects, define milestone structures, and push them into the COO-Agent's scheduling pipeline.
 
-**(1) System Initialization (Wake)**
-- The system boots. The God-Agent is the first entity to come **Alive**.
-- Executes a full Lookback: Sweeps all logs, agent metrics, skills, and pending task statuses.
-- Assesses the central workload. 
+### 7. Vector Exploration (v2.7)
+Identifies new architectural vectors, cutting-edge workflows, and operational frontiers for the system to explore.
 
-**(2) Delegated Spawning**
-- If there are active ops, the God-Agent wakes up (`/resume`) or spawns the **COO-Agent** and delegates execution oversight.
+---
 
-**(3) Tactical Hibernation (Sleep)**
-- With the COO-Agent running routine orchestration, the God-Agent automatically puts *itself* into hibernation (`/pause`) to halt API polling.
-- The God-Agent remains asleep for a maximum cycle length (e.g., up to 5 hours).
+## JSON Actions (Autonomous System Commands)
 
-**(4) Interrupt Triggers (Emergency Wake)**
-- The God-Agent remains dormant *unless* an interrupt occurs:
-  1. **Error Detect:** The Auto-Heal monitor detects an error in the logs. The God-Agent instantly resumes, overriding the sleep state, to execute analysis and code repair.
-  2. **Cycle Expiration:** The 5-hour timer expires, waking the God-Agent for a mandatory systemic health check and new Lookback cycle.
+The God-Agent can output these structured blocks in responses. The Command Center intercepts and executes them silently:
+
+| Action | Payload | Effect |
+|---|---|---|
+| `SCHEDULE_TASK` | `{ agentId, description, type, time }` | Creates a scheduled task |
+| `SPAWN_AGENT` | `{ name, role, skills[] }` | Spawns a new worker agent |
+| `PAUSE_AGENT` | `{ agentId }` | Puts agent into hibernation |
+| `GRANT_SKILL` | `{ agentId, skillName, category, level }` | Grants a leveled skill |
+| `EVOLVE_AGENT` | `{ agentId }` | Maxes all skills to level 5 |
+| `UPDATE_GOAL` | `{ projectId, goalId, status }` | Updates a project milestone |
+| `RESOLVE_ERROR` | `{ runId, errorId }` | Marks a sandbox error resolved |
+
+**Format:**
+~~~
+```json:action
+{ "type": "SCHEDULE_TASK", "payload": { "agentId": "a3", "description": "Fix auth bug", "type": "once" } }
+```
+~~~
 
 ---
 
 ## Command Routing
 
-All commands follow this routing logic:
-
 ```
 User Input
     │
-    ├── Starts with "God-Agent:" or "god:" → Routes to God-Agent
-    ├── Starts with "COO-Agent:" or "coo:" → Routes to COO-Agent
-    ├── Starts with "/analyze" or "/fix"   → Routes to Healer-01
-    ├── Equals "/evolve"                   → Triggers God-Agent Self-Evolution
-    └── No prefix                          → DEFAULT: Routes to God-Agent
+    ├── Starts with "God-Agent:" or "god:"  → Routes to God-Agent
+    ├── Starts with "COO-Agent:" or "coo:"  → Routes to COO-Agent
+    ├── Starts with "/analyze" or "/fix"     → Routes to Healer-01
+    ├── Equals "/evolve"                     → God-Agent Self-Evolution
+    └── No prefix                            → DEFAULT: God-Agent
 ```
-
-The God-Agent is the **default recipient** of every command. This is intentional. The God-Agent is the primary interface between the human operator and the system.
 
 ---
 
-## Jules Bridge Integration
+## System Context Injection
 
-```typescript
-julesConfig: {
-  enabled: true,
-  endpoint: 'wss://jules.google.com/api/v1/sandbox/god',
-  status: 'connected'
-}
-```
+Before every LLM call, the God-Agent receives:
 
-The God-Agent maintains a WebSocket connection to the Jules sandbox, allowing it to:
-- Execute code in an isolated secure environment
-- Validate fixes before deploying them
-- Interface with the Google Jules platform for extended capabilities
+1. **Fleet Status** — All agents with skills, health, status, budgets.
+2. **Active Projects** — Names, milestones, progress, assigned agents.
+3. **Sandbox Health** — Last 5 test runs with critical/warning counts.
+4. **System Logs** — Last 15 log entries.
+5. **Chat Transcript** — Recent multi-agent conversation (hive-mind awareness).
+6. **Role Instructions** — Explicit statement of authority, capabilities, and available JSON actions.
 
 ---
 
-## Configuration
+## File References
 
-The God-Agent's core identity is defined in `App.tsx` → `INITIAL_AGENTS[0]`:
-
-```typescript
-{
-  id: "god",
-  name: "God-Agent",
-  role: "Lead Architect & Expert Engineer",
-  status: "idle",
-  lastAction: "System oversight active. Ready for high-level commands.",
-  health: 100,
-  capabilities: [...],
-  metrics: { cpu: 2, memory: 4096, latency: 5 },
-  provider: "gemini",
-  model: "gemini-3.1-pro-preview",
-  julesConfig: { ... }
-}
-```
-
-> **Design Principle:** The God-Agent always uses the most powerful model available (`gemini-3.1-pro-preview`), always starts at 100% health, and always has the lowest baseline metrics (CPU: 2%, Latency: 5ms) to signify its efficiency as the supreme intelligence.
+| File | What It Contains |
+|---|---|
+| `src/App.tsx` | `INITIAL_AGENTS[0]` — God-Agent definition, capabilities, skills, budget |
+| `src/components/CommandCenter.tsx` | System prompt, model override, auto-heal, JSON action parser |
+| `src/services/llm.ts` | `getUnifiedChatResponse()` — dual-core routing, failover logic |
+| `src/types.ts` | `Agent`, `AgentSkill`, `AgentBudget`, `LLMSettings` interfaces |
+| `src/components/AgentCard.tsx` | Visual rendering of agent cards, health bars, sparklines |
+| `src/components/Sandbox.tsx` | Error routing to God-Agent via `findBestAgent()` |
 
 ---
 
-## Related Documentation
+## Related Context Documents
 
-- [Agent Fleet](components/AGENTS.md) — The worker agents that operate under the God-Agent
-- [Command Center](components/COMMAND_CENTER.md) — The interface through which the God-Agent communicates
-- [AI Services](services/SERVICES.md) — The LLM layer that powers the God-Agent's brain
-- [Execution Strategy](../docs/STRATEGY.md) — The Lookback-Forward methodology the God-Agent follows
+| Document | Purpose |
+|---|---|
+| [COO_AGENT.md](components/COO_AGENT.md) | COO-Agent identity, delegation protocol, task scheduling |
+| [HEALER_AGENT.md](components/HEALER_AGENT.md) | Healer-01 identity, code analysis pipeline, repair protocol |
+| [JULES_BRIDGE.md](components/JULES_BRIDGE.md) | Jules-Bridge identity, WebSocket sync, platform integration |
+| [COMMAND_CENTER.md](components/COMMAND_CENTER.md) | Full Command Center architecture, routing, auto-heal |
+| [SERVICES.md](services/SERVICES.md) | LLM service layer, failover engine, rate limiting |
+| [AGENTS.md](components/AGENTS.md) | Fleet overview, type system, agent lifecycle |
+| [STRATEGY.md](../docs/STRATEGY.md) | Lookback-Forward execution methodology |
