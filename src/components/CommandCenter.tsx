@@ -706,6 +706,10 @@ When you have fixed a sandbox error (after a code repair), resolve it:
 \`\`\`json:action
 { "type": "RESOLVE_ERROR", "payload": { "runId": "run-xxx", "errorId": "err-xxx" } }
 \`\`\`
+If you need to construct, write, or modify actual codebase files on disk (Jules-Bridge code writing pipeline), output exactly:
+\`\`\`json:action
+{ "type": "WRITE_FILE", "payload": { "filePath": "src/components/NewComponent.tsx", "content": "export const Component = () => <div />" } }
+\`\`\`
 The system will silently intercept and execute these json:actions. You are fully autonomous.
 
 CRITICAL SLEEP PROTOCOL: If you are the God-Agent and you were woken up for a query or a special task, you MUST automatically return to Tactical Hibernation the moment your task is done. To auto-sleep, output exactly:
@@ -839,6 +843,21 @@ CRITICAL SLEEP PROTOCOL: If you are the God-Agent and you were woken up for a qu
               onUpdateSandboxRuns(updatedRuns);
               toast.success(`Sandbox error resolved by agent.`);
               postSystemMessage("CORE", `[SANDBOX] Error ${errorId} in run ${runId} marked as RESOLVED.`);
+            } else if (action.type === "WRITE_FILE") {
+              const { filePath, content } = action.payload;
+              try {
+                const res = await fetch('/api/jules/write', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ filePath, content })
+                });
+                if (!res.ok) throw new Error(await res.text());
+                toast.success(`Agent successfully wrote ${filePath}`);
+                postSystemMessage("JULES-BRIDGE", `[FS_WRITE] Successfully wrote to \`${filePath}\``);
+              } catch (fsErr: any) {
+                toast.error(`Agent failed to write file: ${fsErr.message}`);
+                postSystemMessage("JULES-BRIDGE", `[FS_ERROR] Failed to write \`${filePath}\`: ${fsErr.message}`);
+              }
             }
           } catch (e) {
             console.error("Failed to parse AI action block:", e);
