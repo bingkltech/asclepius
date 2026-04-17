@@ -55,6 +55,8 @@ interface SandboxProps {
   onUpdateRuns?: (runs: SandboxRun[]) => void;
   onCreateTask?: (task: { agentId: string; description: string; type: string }) => void;
   onPostSystemMessage?: (sender: string, content: string) => void;
+  selectedProjectId?: string;
+  onSelectProject?: (id: string) => void;
 }
 
 const SEVERITY_CONFIG: Record<string, { icon: React.ReactNode; color: string; bg: string }> = {
@@ -63,7 +65,7 @@ const SEVERITY_CONFIG: Record<string, { icon: React.ReactNode; color: string; bg
   info: { icon: <Info className="w-3.5 h-3.5" />, color: "text-sky-400", bg: "bg-sky-500/10 border-sky-500/20" },
 };
 
-export function Sandbox({ settings, projects = [], agents = [], sandboxRuns = [], onUpdateRuns, onCreateTask, onPostSystemMessage }: SandboxProps) {
+export function Sandbox({ settings, projects = [], agents = [], sandboxRuns = [], onUpdateRuns, onCreateTask, onPostSystemMessage, selectedProjectId = "none", onSelectProject }: SandboxProps) {
   const [code, setCode] = useState(`function calculateTotal(items) {
   let total = 0;
   for (var i = 0; i < items.length; i++) {
@@ -71,7 +73,11 @@ export function Sandbox({ settings, projects = [], agents = [], sandboxRuns = []
   }
   return total;
 }`);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("none");
+  const handleSetSelectedProjectId = (id: string) => {
+    if (onSelectProject) {
+      onSelectProject(id);
+    }
+  };
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [currentRun, setCurrentRun] = useState<SandboxRun | null>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -311,7 +317,7 @@ export function Sandbox({ settings, projects = [], agents = [], sandboxRuns = []
         </div>
         <div className="flex items-center gap-2">
           {/* Project selector */}
-          <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+            <Select value={selectedProjectId} onValueChange={handleSetSelectedProjectId}>
             <SelectTrigger className="w-[220px] h-9 text-xs bg-secondary/30 border-border/50">
               <FolderGit2 className="w-3.5 h-3.5 mr-2 text-violet-400" />
               <span className="truncate">

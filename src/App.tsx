@@ -228,6 +228,7 @@ export default function App() {
     }
     return [];
   });
+  const [activeProjectId, setActiveProjectId] = useState<string>("none");
   const [searchQuery, setSearchQuery] = useState("");
   const [draggedAgentId, setDraggedAgentId] = useState<string | null>(null);
   const [dragOverAgentId, setDragOverAgentId] = useState<string | null>(null);
@@ -1278,6 +1279,7 @@ export default function App() {
             onUpdateProjects={setProjects}
             sandboxRuns={sandboxRuns}
             onUpdateSandboxRuns={setSandboxRuns}
+            activeProjectId={activeProjectId}
           />
         );
       case "scheduler":
@@ -1311,6 +1313,8 @@ export default function App() {
             onUpdateRuns={setSandboxRuns}
             onCreateTask={handleAddTask}
             onPostSystemMessage={postSystemMessage}
+            selectedProjectId={activeProjectId}
+            onSelectProject={setActiveProjectId}
           />
         );
       case "settings":

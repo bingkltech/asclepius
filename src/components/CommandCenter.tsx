@@ -40,11 +40,12 @@ interface CommandCenterProps {
   onUpdateProjects?: (projects: Project[]) => void;
   sandboxRuns?: SandboxRun[];
   onUpdateSandboxRuns?: (runs: SandboxRun[]) => void;
+  activeProjectId?: string;
 }
 
 // createSkill imported from @/src/types (canonical source)
 
-export function CommandCenter({ logs, settings, agents, onUpdateSettings, messages, setMessages, onSpawnAgent, onTerminateAgent, onPauseAgent, onResumeAgent, onAddTask, onUpdateAgent, projects = [], onUpdateProjects, sandboxRuns = [], onUpdateSandboxRuns }: CommandCenterProps) {
+export function CommandCenter({ logs, settings, agents, onUpdateSettings, messages, setMessages, onSpawnAgent, onTerminateAgent, onPauseAgent, onResumeAgent, onAddTask, onUpdateAgent, projects = [], onUpdateProjects, sandboxRuns = [], onUpdateSandboxRuns, activeProjectId = "none" }: CommandCenterProps) {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [defaultOllamaModel, setDefaultOllamaModel] = useState<string>("");
@@ -623,18 +624,27 @@ export function CommandCenter({ logs, settings, agents, onUpdateSettings, messag
 
     const recentChatTranscript = messages.slice(-15).map(m => `[${m.timestamp}] ${m.sender}: ${m.content.slice(0, 300)}`).join("\n\n");
 
-    // Build project context for agent awareness
+    // ─── Tier 4: Project Context Scoping ───
     const activeProjects = projects.filter(p => p.status === 'active' || p.status === 'planning' || p.status === 'review');
     const projectContext = activeProjects.length > 0 ? activeProjects.map(p => {
       const progress = p.goals.length > 0 ? Math.round(p.goals.reduce((s, g) => s + g.progress, 0) / p.goals.length) : 0;
-      const goalsList = p.goals.map(g => `  - [${g.status.toUpperCase()}] ${g.title} (${g.progress}%)${g.assignedAgentId ? ` → Agent: ${g.assignedAgentId}` : ''}`).join('\n');
-      const assignedNames = p.assignedAgentIds.map(id => agents.find(a => a.id === id)?.name || id).join(', ');
-      return `📋 Project: "${p.name}" [${p.status.toUpperCase()}] (Priority: ${p.priority}) — ${progress}% complete
+      
+      // If it's the actively selected project OR there's no active project and it's the only project, show full context
+      const isActiveContext = p.id === activeProjectId || (activeProjectId === "none" && activeProjects.length === 1);
+      
+      if (isActiveContext) {
+        const goalsList = p.goals.map(g => `  - [${g.status.toUpperCase()}] ${g.title} (${g.progress}%)${g.assignedAgentId ? ` → Agent: ${g.assignedAgentId}` : ''}`).join('\n');
+        const assignedNames = p.assignedAgentIds.map(id => agents.find(a => a.id === id)?.name || id).join(', ');
+        return `📋 Project: "${p.name}" [${p.status.toUpperCase()}] (Priority: ${p.priority}) — ${progress}% complete
   GitHub: ${p.githubUrl || 'N/A'}
   Tech: ${p.techStack.join(', ') || 'N/A'}
   Description: ${p.description.slice(0, 200) || 'No description'}
   Assigned: ${assignedNames || 'No agents assigned'}
   Milestones:\n${goalsList || '  - No milestones defined'}`;
+      } else {
+        // Compress context for inactive projects
+        return `📋 Project: "${p.name}" [${p.status.toUpperCase()}] — ${progress}% complete (Priority: ${p.priority})`;
+      }
     }).join('\n\n') : 'No active projects.';
 
     const systemContext = `You are operating in the Command Center as the ${targetAgent.name}.

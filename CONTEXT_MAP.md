@@ -315,12 +315,12 @@ Instead of injecting the last 15 logs blindly:
 3. ✅ Deprioritize repetitive `[SCHEDULED]` task logs
 4. ✅ Cap at 10 entries total (reduced from 15)
 
-#### Tier 4: Project Context Scoping (Recommended)
+#### Tier 4: Project Context Scoping (✅ Implemented)
 
-When the user is working in a specific project context (e.g., via Sandbox project selector):
-1. Inject FULL context for the active project only
-2. Inject ONE-LINE summaries for other projects
-3. Omit milestone details for inactive projects
+When the user is working in a specific project context (via Sandbox project selector), `activeProjectId` is passed to the context builder:
+1. ✅ Inject FULL context for the active project only (or if it's the only project).
+2. ✅ Inject ONE-LINE summaries for other inactive projects.
+3. ✅ Omit milestone details and descriptions for inactive projects.
 
 ---
 
