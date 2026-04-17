@@ -734,7 +734,7 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                           <SelectTrigger className="w-full bg-secondary/30 border-border/50 text-sm h-10">
                             <SelectValue placeholder="Select model" />
                           </SelectTrigger>
-                          <SelectContent className="border-border/50">
+                          <SelectContent className="bg-[#1e1e24] border-border/50">
                             <SelectItem value="gemini-3.1-pro-preview" className="text-xs">
                               gemini-3.1-pro-preview (Best)
                             </SelectItem>
@@ -748,7 +748,7 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                           <SelectTrigger className="w-full bg-secondary/30 border-border/50 text-sm h-10">
                             <SelectValue placeholder="Select a model" />
                           </SelectTrigger>
-                          <SelectContent className="border-border/50 max-h-60">
+                          <SelectContent className="bg-[#1e1e24] border-border/50 max-h-60">
                             <SelectGroup>
                               <SelectLabel className="text-[9px] uppercase tracking-widest text-muted-foreground/40">
                                 Local Models
@@ -1466,7 +1466,7 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                         <SelectTrigger className="w-full bg-secondary/30 border-border/50 text-sm h-10">
                           <SelectValue placeholder="Use global default" />
                         </SelectTrigger>
-                        <SelectContent className="border-border/50">
+                        <SelectContent className="bg-[#1e1e24] border-border/50">
                           <SelectItem value=" " className="text-xs">Use global default</SelectItem>
                           <SelectItem value="gemini-3.1-pro-preview" className="text-xs">gemini-3.1-pro-preview (Best)</SelectItem>
                           <SelectItem value="gemini-3.1-flash-lite-preview" className="text-xs">gemini-3.1-flash-lite-preview (Fast)</SelectItem>
@@ -1517,7 +1517,7 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                           <SelectTrigger className="w-full bg-secondary/30 border-border/50 text-sm h-10">
                             <SelectValue placeholder="Use global default" />
                           </SelectTrigger>
-                          <SelectContent className="border-border/50 max-h-60">
+                          <SelectContent className="bg-[#1e1e24] border-border/50 max-h-60">
                             <SelectGroup>
                               <SelectLabel className="text-[9px] uppercase tracking-widest text-muted-foreground/40">
                                 Local Models
