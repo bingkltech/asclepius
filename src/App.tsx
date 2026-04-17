@@ -25,7 +25,7 @@ import {
   createSkill,
   createHeartbeat,
 } from "./types";
-import { generateAgentAction } from "./services/gemini";
+import { getUnifiedChatResponse, resolveAgentSettings } from "./services/llm";
 import { TaskScheduler } from "./components/TaskScheduler";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
@@ -574,9 +574,14 @@ export default function App() {
         if (shouldRun) {
           const agent = agents.find((a) => a.id === task.agentId);
           if (agent) {
-            const action = await generateAgentAction(
+            const settings = resolveAgentSettings(agent, llmSettings);
+            const action = await getUnifiedChatResponse(
+              settings,
+              "What is your next action to help the developer? Keep it short and professional.",
+              [],
+              `Scheduled Task: ${task.description}`,
               agent.name,
-              `Scheduled Task: ${task.description}`
+              agent.role
             );
 
             const newLog: LogEntry = {
@@ -792,9 +797,14 @@ export default function App() {
       const newStatus =
         statuses[Math.floor(Math.random() * statuses.length)];
 
-      const action = await generateAgentAction(
+      const settings = resolveAgentSettings(randomAgent, llmSettings);
+      const action = await getUnifiedChatResponse(
+        settings,
+        "What is your next action to help the developer? Keep it short and professional.",
+        [],
+        `Agent is currently ${newStatus}.`,
         randomAgent.name,
-        `Agent is currently ${newStatus}.`
+        randomAgent.role
       );
 
       const newLog: LogEntry = {

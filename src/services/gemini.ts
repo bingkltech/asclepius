@@ -53,25 +53,7 @@ export const analyzeCode = async (code: string, apiKey?: string) => {
   }
 };
 
-export const generateAgentAction = async (agentName: string, context: string, apiKey?: string) => {
-  try {
-    const ai = getAI(apiKey);
-    const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-lite-preview",
-      contents: `You are an autonomous AI agent named ${agentName}. 
-      Current context: ${context}
-      What is your next action to help the developer? Keep it short and professional.`,
-    });
-    return response.text || "Monitoring system...";
-  } catch (error: any) {
-    const isRateLimit = error?.message?.includes("429") || error?.status === 429 || JSON.stringify(error).includes("429") || JSON.stringify(error).includes("RESOURCE_EXHAUSTED");
-    if (isRateLimit) {
-      console.warn(`[${agentName}] Rate limit exceeded. Pausing actions.`);
-      return "System paused: API rate limit exceeded.";
-    }
-    return "Analyzing logs...";
-  }
-};
+
 
 export const chatWithAgent = async (message: string, history: Content[] = [], systemInstruction: string = "", apiKey?: string, model: string = "gemini-3.1-pro-preview") => {
   try {

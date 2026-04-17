@@ -117,11 +117,6 @@ Priority: Explicit key → Environment variable → Empty (will fail)
 - **Output:** Structured JSON via `responseMimeType: "application/json"` + schema
 - **Error Handling:** Detects 429 rate limits and returns a quota exhaustion message
 
-#### `generateAgentAction(agentName, context, apiKey?)`
-- **Model:** `gemini-3.1-flash-lite-preview` (lightweight, for the simulation loop)
-- **Purpose:** Generates short action descriptions for the agent heartbeat
-- **Error Handling:** On rate limit → returns "System paused" message
-
 #### `chatWithAgent(message, history, systemInstruction, apiKey?, model?)`
 - **Model:** Configurable (defaults to `gemini-3.1-pro-preview`)
 - **Mode:** Multi-turn chat via `ai.chats.create()` with history injection
