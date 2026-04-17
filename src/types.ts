@@ -124,6 +124,21 @@ export interface Delegation {
   createdAt: string;
 }
 
+// ─── Agent Identity & Credentials ───
+// Each agent can have its own Google identity, API key, and model preferences.
+// This enables true workforce isolation: per-agent quota, per-agent failover.
+export interface AgentCredentials {
+  email?: string;              // Gmail identity (e.g., "asclepius.god.agent@gmail.com")
+  geminiApiKey?: string;       // This agent's personal Gemini API key
+  ollamaBaseUrl?: string;      // Can point to different Ollama instances/ports
+  ollamaModel?: string;        // Preferred local model for this agent
+  geminiModel?: string;        // Preferred cloud model for this agent
+  julesSessionId?: string;     // This agent's personal Jules sandbox session
+  quotaUsed?: number;          // Per-agent daily usage tracker
+  quotaLimit?: number;         // Per-agent daily limit (default: 1500 free tier)
+  lastQuotaReset?: string;     // ISO timestamp of last quota reset
+}
+
 // ─── Core Agent Interface ───
 export interface Agent {
   id: string;
@@ -141,6 +156,7 @@ export interface Agent {
   provider?: LLMProvider;
   model?: string;
   julesConfig?: JulesConfig;
+  credentials?: AgentCredentials; // Per-agent identity, API keys, and model prefs
   createdBy: 'system' | 'god'; // Who spawned this agent
   isProtected: boolean;      // Cannot be terminated (God, COO)
   delegations?: Delegation[];

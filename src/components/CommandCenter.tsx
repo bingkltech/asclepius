@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, User, TerminalSquare, Bot, Settings2, Cpu, Globe, RefreshCw, ShieldCheck, ShieldAlert, Zap, ZapOff, Loader2 } from "lucide-react";
-import { getUnifiedChatResponse, getUnifiedCodeAnalysis, testConnection, getGeminiRefreshInfo } from "@/src/services/llm";
+import { getUnifiedChatResponse, getUnifiedCodeAnalysis, testConnection, getGeminiRefreshInfo, resolveAgentSettings, trackAgentQuota } from "@/src/services/llm";
 import { listOllamaModels, OllamaModel } from "@/src/services/ollama";
 import { ChatMessage, LogEntry, LLMSettings, Agent, AgentSkill, LLMProvider, SKILL_XP_TABLE, SKILL_LEVEL_NAMES, Project, GoalStatus, SandboxRun } from "@/src/types";
 import { motion } from "motion/react";
@@ -705,19 +705,19 @@ CRITICAL SLEEP PROTOCOL: If you are the God-Agent and you were woken up for a qu
 
     let responseText = "";
     try {
-      // Use the loaded model if available
-      let commandCenterSettings: LLMSettings = {
+      // Resolve per-agent credentials (agent's own key → global fallback)
+      let commandCenterSettings: LLMSettings = resolveAgentSettings(targetAgent, {
         ...settings,
         ollamaModel: defaultOllamaModel || settings.ollamaModel
-      };
+      });
 
-      // God-Agent enforces strict models
+      // God-Agent enforces strict models on top of per-agent resolution
       if (targetAgent.id === "god") {
         commandCenterSettings = {
           ...commandCenterSettings,
-          provider: "gemini", // Primarily forces Gemini API
-          geminiModel: "gemini-3.1-pro-preview", // Forces pro-preview
-          ollamaModel: "gemma4:e4b" // Guaranteed fallback
+          provider: "gemini",
+          geminiModel: commandCenterSettings.geminiModel || "gemini-3.1-pro-preview",
+          ollamaModel: commandCenterSettings.ollamaModel || "gemma4:e4b"
         };
       }
 
@@ -741,6 +741,7 @@ CRITICAL SLEEP PROTOCOL: If you are the God-Agent and you were woken up for a qu
         );
       }
       trackUsage();
+      trackAgentQuota(targetAgent); // Track per-agent personal quota
       // Intercept and Execute AI Actions
       const actionBlocks = [...responseText.matchAll(/```json:action\n([\s\S]*?)```/g)];
       if (actionBlocks.length > 0) {

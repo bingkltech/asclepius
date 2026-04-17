@@ -13,6 +13,7 @@ import {
   AgentSkill,
   AgentHeartbeat,
   AgentBudget,
+  AgentCredentials,
   LLMProvider,
   SkillCategory,
   SKILL_XP_TABLE,
@@ -61,12 +62,14 @@ import {
   AlertTriangle,
   Crown,
   Clock,
+  KeyRound,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 // ─── Tab types ───
-type ConfigTab = "general" | "engine" | "heartbeat" | "skills" | "budget" | "tools";
+type ConfigTab = "general" | "engine" | "heartbeat" | "skills" | "budget" | "tools" | "credentials";
 
 interface AgentConfigProps {
   agent: Agent;
@@ -201,6 +204,13 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
   const [capabilities, setCapabilities] = React.useState<string[]>([...agent.capabilities]);
   const [newCapability, setNewCapability] = React.useState("");
 
+  // Credentials (per-agent identity)
+  const [credEmail, setCredEmail] = React.useState(agent.credentials?.email || "");
+  const [credGeminiKey, setCredGeminiKey] = React.useState(agent.credentials?.geminiApiKey || "");
+  const [credGeminiModel, setCredGeminiModel] = React.useState(agent.credentials?.geminiModel || "");
+  const [credOllamaUrl, setCredOllamaUrl] = React.useState(agent.credentials?.ollamaBaseUrl || "");
+  const [credOllamaModel, setCredOllamaModel] = React.useState(agent.credentials?.ollamaModel || "");
+
   // Reset to agent values when agent changes
   React.useEffect(() => {
     setName(agent.name);
@@ -217,6 +227,11 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
     setBudgetPriority(agent.budget.priority);
     setBudgetOverage(agent.budget.overage);
     setCapabilities([...agent.capabilities]);
+    setCredEmail(agent.credentials?.email || "");
+    setCredGeminiKey(agent.credentials?.geminiApiKey || "");
+    setCredGeminiModel(agent.credentials?.geminiModel || "");
+    setCredOllamaUrl(agent.credentials?.ollamaBaseUrl || "");
+    setCredOllamaModel(agent.credentials?.ollamaModel || "");
   }, [agent, open]);
 
   const isGod = agent.id === "god";
@@ -321,6 +336,17 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
         overage: budgetOverage,
       },
       capabilities,
+      credentials: {
+        ...(agent.credentials || {}),
+        email: credEmail.trim() || undefined,
+        geminiApiKey: credGeminiKey.trim() || undefined,
+        geminiModel: credGeminiModel.trim() || undefined,
+        ollamaBaseUrl: credOllamaUrl.trim() || undefined,
+        ollamaModel: credOllamaModel.trim() || undefined,
+        quotaUsed: agent.credentials?.quotaUsed || 0,
+        quotaLimit: agent.credentials?.quotaLimit || 1500,
+        lastQuotaReset: agent.credentials?.lastQuotaReset || new Date().toISOString(),
+      },
     };
 
     onSave(updated);
@@ -344,6 +370,11 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
     setBudgetPriority(agent.budget.priority);
     setBudgetOverage(agent.budget.overage);
     setCapabilities([...agent.capabilities]);
+    setCredEmail(agent.credentials?.email || "");
+    setCredGeminiKey(agent.credentials?.geminiApiKey || "");
+    setCredGeminiModel(agent.credentials?.geminiModel || "");
+    setCredOllamaUrl(agent.credentials?.ollamaBaseUrl || "");
+    setCredOllamaModel(agent.credentials?.ollamaModel || "");
     toast.info("Reset to current values");
   };
 
@@ -427,6 +458,13 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
               label="Tools & Caps"
               onClick={() => setTab("tools")}
               badge={capabilities.length}
+            />
+            <TabButton
+              active={tab === "credentials"}
+              icon={KeyRound}
+              label="Credentials"
+              onClick={() => setTab("credentials")}
+              badge={credGeminiKey ? "✓" : undefined}
             />
           </div>
 
@@ -1095,6 +1133,130 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                             + {preset}
                           </button>
                         ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ─────────── CREDENTIALS ─────────── */}
+              {tab === "credentials" && (
+                <div className="space-y-5">
+                  <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/50">
+                    Agent Identity & Credentials
+                  </h3>
+                  <p className="text-[10px] text-muted-foreground/40">
+                    Give this agent its own Google account and API key for independent quota and isolation.
+                  </p>
+
+                  <div className="space-y-4">
+                    {/* Email */}
+                    <div className="space-y-2">
+                      <Label className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60 flex items-center gap-1.5">
+                        <Mail className="w-3 h-3" /> Gmail Identity
+                      </Label>
+                      <Input
+                        value={credEmail}
+                        onChange={(e) => setCredEmail(e.target.value)}
+                        placeholder="asclepius.god.agent@gmail.com"
+                        className="bg-secondary/30 border-border/50 text-xs font-mono"
+                      />
+                      <p className="text-[9px] text-muted-foreground/40">
+                        The Google account this agent authenticates as. Used for Jules sandbox and Gemini API.
+                      </p>
+                    </div>
+
+                    {/* Gemini API Key */}
+                    <div className="space-y-2">
+                      <Label className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60 flex items-center gap-1.5">
+                        <KeyRound className="w-3 h-3" /> Personal Gemini API Key
+                      </Label>
+                      <Input
+                        type="password"
+                        value={credGeminiKey}
+                        onChange={(e) => setCredGeminiKey(e.target.value)}
+                        placeholder="AIza..."
+                        className="bg-secondary/30 border-border/50 text-xs font-mono"
+                      />
+                      <p className="text-[9px] text-muted-foreground/40">
+                        This agent's own API key. Each key gets 1,500 free requests/day. Falls back to global key if empty.
+                      </p>
+                    </div>
+
+                    {/* Gemini Model */}
+                    <div className="space-y-2">
+                      <Label className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
+                        Preferred Gemini Model
+                      </Label>
+                      <Select value={credGeminiModel} onValueChange={setCredGeminiModel}>
+                        <SelectTrigger className="bg-secondary/30 border-border/50 text-xs">
+                          <SelectValue placeholder="Use global default" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border/50">
+                          <SelectItem value=" " className="text-xs">Use global default</SelectItem>
+                          <SelectItem value="gemini-3.1-pro-preview" className="text-xs">gemini-3.1-pro-preview (Best)</SelectItem>
+                          <SelectItem value="gemini-3.1-flash-lite-preview" className="text-xs">gemini-3.1-flash-lite-preview (Fast)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="border-t border-border/20 pt-4 space-y-4">
+                      <h4 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/50">
+                        Ollama Fallback
+                      </h4>
+
+                      {/* Ollama URL */}
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
+                          Ollama Endpoint
+                        </Label>
+                        <Input
+                          value={credOllamaUrl}
+                          onChange={(e) => setCredOllamaUrl(e.target.value)}
+                          placeholder="http://localhost:11434 (global default)"
+                          className="bg-secondary/30 border-border/50 text-xs font-mono"
+                        />
+                      </div>
+
+                      {/* Ollama Model */}
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
+                          Ollama Model
+                        </Label>
+                        <Input
+                          value={credOllamaModel}
+                          onChange={(e) => setCredOllamaModel(e.target.value)}
+                          placeholder="gemma4:e4b (global default)"
+                          className="bg-secondary/30 border-border/50 text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Quota Display */}
+                    <div className="border-t border-border/20 pt-4">
+                      <div className="p-4 rounded-xl bg-secondary/20 border border-border/20 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/50">Personal Quota</span>
+                          <span className="text-xs font-mono text-foreground/60">
+                            {agent.credentials?.quotaUsed || 0} / {agent.credentials?.quotaLimit || 1500}
+                          </span>
+                        </div>
+                        <div className="h-2 w-full bg-secondary/40 rounded-full overflow-hidden">
+                          <div
+                            className={cn(
+                              "h-full rounded-full transition-all",
+                              ((agent.credentials?.quotaUsed || 0) / (agent.credentials?.quotaLimit || 1500)) > 0.9
+                                ? "bg-rose-500"
+                                : ((agent.credentials?.quotaUsed || 0) / (agent.credentials?.quotaLimit || 1500)) > 0.7
+                                ? "bg-amber-500"
+                                : "bg-emerald-500"
+                            )}
+                            style={{ width: `${Math.min(100, ((agent.credentials?.quotaUsed || 0) / (agent.credentials?.quotaLimit || 1500)) * 100)}%` }}
+                          />
+                        </div>
+                        <p className="text-[9px] text-muted-foreground/40">
+                          Resets daily. Each Google account provides 1,500 free Gemini requests/day.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>

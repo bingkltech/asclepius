@@ -5,8 +5,46 @@
 
 import { analyzeCode as analyzeWithGemini, chatWithAgent as chatWithGeminiAgent } from "./gemini";
 import { chatWithOllama, generateOllamaContent } from "./ollama";
-import { LLMSettings, CodeAnalysis } from "../types";
+import { LLMSettings, CodeAnalysis, Agent } from "../types";
 import { Content } from "@google/genai";
+
+// ─── Per-Agent Credential Resolver ───
+// Merges an agent's personal credentials with global settings.
+// Priority: Agent credentials → Agent model field → Global settings.
+export function resolveAgentSettings(agent: Agent | undefined, globalSettings: LLMSettings): LLMSettings {
+  if (!agent?.credentials) return globalSettings;
+
+  const creds = agent.credentials;
+
+  // Reset per-agent quota if it's a new day
+  if (creds.lastQuotaReset) {
+    const lastReset = new Date(creds.lastQuotaReset).toDateString();
+    const today = new Date().toDateString();
+    if (lastReset !== today) {
+      creds.quotaUsed = 0;
+      creds.lastQuotaReset = new Date().toISOString();
+    }
+  }
+
+  return {
+    provider: creds.geminiApiKey ? 'gemini' : globalSettings.provider,
+    geminiApiKey: creds.geminiApiKey || globalSettings.geminiApiKey,
+    geminiModel: creds.geminiModel || agent.model || globalSettings.geminiModel,
+    ollamaBaseUrl: creds.ollamaBaseUrl || globalSettings.ollamaBaseUrl,
+    ollamaModel: creds.ollamaModel || agent.model || globalSettings.ollamaModel,
+    autoHeal: globalSettings.autoHeal,
+    usage: globalSettings.usage,
+  };
+}
+
+// Track usage for a specific agent's personal quota
+export function trackAgentQuota(agent: Agent): void {
+  if (!agent.credentials) return;
+  agent.credentials.quotaUsed = (agent.credentials.quotaUsed || 0) + 1;
+  if (!agent.credentials.lastQuotaReset) {
+    agent.credentials.lastQuotaReset = new Date().toISOString();
+  }
+}
 
 // ─── Gemini Rate Limit Tracker ───
 // Persisted in localStorage so it survives page reloads.
