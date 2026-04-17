@@ -328,16 +328,16 @@ When the user is working in a specific project context (via Sandbox project sele
 
 Every piece of state and its localStorage key:
 
-| Key | Data | Cap | Written By |
-|---|---|---|---|
-| `asclepius_agents` | Agent[] (full fleet) | Unlimited | `App.tsx` useEffect |
-| `asclepius_agent_order` | string[] (display order) | Unlimited | `App.tsx` useEffect |
-| `asclepius_logs` | LogEntry[] | 100 entries | `App.tsx` useEffect |
-| `asclepius_messages` | ChatMessage[] | 100 messages | `App.tsx` useEffect |
-| `asclepius_tasks` | ScheduledTask[] | Unlimited | `App.tsx` useEffect |
-| `asclepius_projects` | Project[] | Unlimited | `App.tsx` useEffect |
-| `asclepius_sandbox_runs` | SandboxRun[] | 50 runs | `App.tsx` useEffect |
-| `antigravity_llm_settings` | LLMSettings | Single object | `App.tsx` useEffect |
+| Key | Data | Cap | Written By | Security |
+|---|---|---|---|---|
+| `asclepius_agents` | Agent[] (full fleet) | Unlimited | `App.tsx` useEffect | 🔒 **Encrypted** (AES-GCM) |
+| `antigravity_llm_settings`| LLMSettings | Single object | `App.tsx` useEffect | 🔒 **Encrypted** (AES-GCM) |
+| `asclepius_agent_order` | string[] (display order) | Unlimited | `App.tsx` useEffect | Plaintext |
+| `asclepius_logs` | LogEntry[] | 100 entries | `App.tsx` useEffect | Plaintext |
+| `asclepius_messages` | ChatMessage[] | 100 messages | `App.tsx` useEffect | Plaintext |
+| `asclepius_tasks` | ScheduledTask[] | Unlimited | `App.tsx` useEffect | Plaintext |
+| `asclepius_projects` | Project[] | Unlimited | `App.tsx` useEffect | Plaintext |
+| `asclepius_sandbox_runs` | SandboxRun[] | 50 runs | `App.tsx` useEffect | Plaintext |
 | `asclepius_gemini_rate_limit` | RateLimitState | Single object | `llm.ts` setRateLimit() |
 
 > **INVARIANT:** All `asclepius_*` keys are owned by `App.tsx` persistence effects. The `antigravity_llm_settings` key name is a legacy from the original project name and MUST NOT be renamed (would orphan existing user data).

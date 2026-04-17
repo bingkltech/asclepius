@@ -58,6 +58,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { motion, AnimatePresence } from "motion/react";
+import { secureGetItem, secureSetItem } from "@/src/lib/crypto";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -207,13 +208,7 @@ const INITIAL_AGENTS: Agent[] = [
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [agents, setAgents] = useState<Agent[]>(() => {
-    const saved = localStorage.getItem("asclepius_agents");
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
-    }
-    return INITIAL_AGENTS;
-  });
+  const [agents, setAgents] = useState<Agent[]>(() => secureGetItem<Agent[]>("asclepius_agents", INITIAL_AGENTS));
   const [agentOrder, setAgentOrder] = useState<string[]>(() => {
     const saved = localStorage.getItem("asclepius_agent_order");
     if (saved) {
@@ -232,28 +227,22 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [draggedAgentId, setDraggedAgentId] = useState<string | null>(null);
   const [dragOverAgentId, setDragOverAgentId] = useState<string | null>(null);
-  const [llmSettings, setLlmSettings] = useState<LLMSettings>(() => {
-    const saved = localStorage.getItem("antigravity_llm_settings");
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
-    }
-    return {
-      provider: "gemini",
-      ollamaBaseUrl: "http://localhost:11434",
-      ollamaModel: "gemma4:e4b",
-      geminiModel: "gemini-3.1-pro-preview",
-      autoHeal: true,
-      geminiApiKey: process.env.GEMINI_API_KEY || "",
-      usage: {
-        requestsToday: 0,
-        lastResetDate: new Date().toDateString(),
-        limitPerDay: 1500,
-      },
-    };
-  });
+  const [llmSettings, setLlmSettings] = useState<LLMSettings>(() => secureGetItem<LLMSettings>("antigravity_llm_settings", {
+    provider: "gemini",
+    ollamaBaseUrl: "http://localhost:11434",
+    ollamaModel: "gemma4:e4b",
+    geminiModel: "gemini-3.1-pro-preview",
+    autoHeal: true,
+    geminiApiKey: process.env.GEMINI_API_KEY || "",
+    usage: {
+      requestsToday: 0,
+      lastResetDate: new Date().toDateString(),
+      limitPerDay: 1500,
+    },
+  }));
 
   useEffect(() => {
-    localStorage.setItem("antigravity_llm_settings", JSON.stringify(llmSettings));
+    secureSetItem("antigravity_llm_settings", llmSettings);
   }, [llmSettings]);
 
   const [commandMessages, setCommandMessages] = useState<ChatMessage[]>(() => {
@@ -281,7 +270,7 @@ export default function App() {
   });
 
   // ─── Persistence Sync ───
-  useEffect(() => { localStorage.setItem("asclepius_agents", JSON.stringify(agents)); }, [agents]);
+  useEffect(() => { secureSetItem("asclepius_agents", agents); }, [agents]);
   useEffect(() => { localStorage.setItem("asclepius_agent_order", JSON.stringify(agentOrder)); }, [agentOrder]);
   useEffect(() => { localStorage.setItem("asclepius_logs", JSON.stringify(logs.slice(0, 100))); }, [logs]); // Cap log persistence
   useEffect(() => { localStorage.setItem("asclepius_messages", JSON.stringify(commandMessages.slice(-100))); }, [commandMessages]); // Keep last 100
