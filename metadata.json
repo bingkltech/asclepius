@@ -1,0 +1,6 @@
+{
+  "name": "Asclepius: Autonomous AI Developer Assistant",
+  "description": "A high-performance AI agent orchestrator and developer assistant that manages multiple autonomous agents, integrates with developer platforms, and provides real-time code healing and analysis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
