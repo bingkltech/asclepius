@@ -22,6 +22,8 @@ import {
   SandboxRun,
   ChatMessage,
   SKILL_XP_TABLE,
+  createSkill,
+  createHeartbeat,
 } from "./types";
 import { generateAgentAction } from "./services/gemini";
 import { TaskScheduler } from "./components/TaskScheduler";
@@ -58,41 +60,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-// ─── Helper: Create a default heartbeat config ───
-function createHeartbeat(interval = 10000, maxMissed = 3): AgentHeartbeat {
-  return {
-    interval,
-    lastBeat: new Date().toISOString(),
-    missedBeats: 0,
-    maxMissed,
-    status: "alive",
-    avgResponseTime: 0,
-    uptimePercent: 100,
-    history: [],
-  };
-}
-
-// ─── Helper: Create a skill ───
-function createSkill(
-  name: string,
-  category: AgentSkill["category"],
-  level: number,
-  description: string,
-  xp = 0
-): AgentSkill {
-  return {
-    id: `skill-${name.toLowerCase().replace(/\s+/g, "-")}-${Math.random().toString(36).slice(2, 6)}`,
-    name,
-    category,
-    level: Math.min(5, Math.max(1, level)),
-    xp,
-    xpToNext: SKILL_XP_TABLE[Math.min(5, Math.max(1, level))] || 0,
-    description,
-    acquiredAt: new Date().toISOString(),
-    usageCount: 0,
-    cooldown: 0,
-  };
-}
+// createSkill and createHeartbeat imported from ./types (canonical source)
 
 // ─── INITIAL AGENTS with full heartbeat, skills, budget, reputation ───
 const INITIAL_AGENTS: Agent[] = [

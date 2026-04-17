@@ -11,7 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, User, TerminalSquare, Bot, Settings2, Cpu, Globe, RefreshCw, ShieldCheck, ShieldAlert, Zap, ZapOff, Loader2 } from "lucide-react";
 import { getUnifiedChatResponse, getUnifiedCodeAnalysis, testConnection, getGeminiRefreshInfo, resolveAgentSettings, trackAgentQuota } from "@/src/services/llm";
 import { listOllamaModels, OllamaModel } from "@/src/services/ollama";
-import { ChatMessage, LogEntry, LLMSettings, Agent, AgentSkill, LLMProvider, SKILL_XP_TABLE, SKILL_LEVEL_NAMES, Project, GoalStatus, SandboxRun } from "@/src/types";
+import { ChatMessage, LogEntry, LLMSettings, Agent, AgentSkill, LLMProvider, SKILL_XP_TABLE, SKILL_LEVEL_NAMES, Project, GoalStatus, SandboxRun, createSkill } from "@/src/types";
 import { motion } from "motion/react";
 import ReactMarkdown from "react-markdown";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -42,26 +42,7 @@ interface CommandCenterProps {
   onUpdateSandboxRuns?: (runs: SandboxRun[]) => void;
 }
 
-// ─── Helper: Create a skill ───
-function createSkill(
-  name: string,
-  category: AgentSkill["category"],
-  level: number,
-  description: string
-): AgentSkill {
-  return {
-    id: `skill-${name.toLowerCase().replace(/\s+/g, "-")}-${Math.random().toString(36).slice(2, 6)}`,
-    name,
-    category,
-    level: Math.min(5, Math.max(1, level)),
-    xp: 0,
-    xpToNext: SKILL_XP_TABLE[Math.min(5, Math.max(1, level))] || 0,
-    description,
-    acquiredAt: new Date().toISOString(),
-    usageCount: 0,
-    cooldown: 0,
-  };
-}
+// createSkill imported from @/src/types (canonical source)
 
 export function CommandCenter({ logs, settings, agents, onUpdateSettings, messages, setMessages, onSpawnAgent, onTerminateAgent, onPauseAgent, onResumeAgent, onAddTask, onUpdateAgent, projects = [], onUpdateProjects, sandboxRuns = [], onUpdateSandboxRuns }: CommandCenterProps) {
   const [input, setInput] = useState("");

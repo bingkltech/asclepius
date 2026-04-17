@@ -90,6 +90,48 @@ export const SKILL_CATEGORY_COLORS: Record<SkillCategory, string> = {
   meta: 'yellow', // God-Agent exclusive
 };
 
+// ─── Factory Functions (Canonical Source) ───
+// These were previously duplicated in App.tsx and CommandCenter.tsx.
+// Always import from here to prevent drift.
+
+export function createSkill(
+  name: string,
+  category: SkillCategory,
+  level: number,
+  description: string,
+  xp = 0
+): AgentSkill {
+  const clampedLevel = Math.min(5, Math.max(1, level));
+  return {
+    id: `skill-${name.toLowerCase().replace(/\s+/g, "-")}-${Math.random().toString(36).slice(2, 6)}`,
+    name,
+    category,
+    level: clampedLevel,
+    xp,
+    xpToNext: SKILL_XP_TABLE[clampedLevel] || 0,
+    description,
+    acquiredAt: new Date().toISOString(),
+    usageCount: 0,
+    cooldown: 0,
+  };
+}
+
+export function createHeartbeat(
+  intervalMs: number = 10000,
+  maxMissed: number = 3
+): AgentHeartbeat {
+  return {
+    interval: intervalMs,
+    lastBeat: new Date().toISOString(),
+    missedBeats: 0,
+    maxMissed,
+    status: "alive",
+    avgResponseTime: 0,
+    uptimePercent: 100,
+    history: [],
+  };
+}
+
 // ─── Budget System ───
 export interface AgentBudget {
   dailyTokenLimit: number;

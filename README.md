@@ -1,181 +1,148 @@
 # ⚕️ Asclepius — Autonomous AI Agent Orchestrator
 
-> *An autonomous AI agent orchestrator where a supreme God-Agent commands, spawns, heals, and evolves an entire fleet of specialized worker agents — with real-time heartbeat monitoring, leveled skills, and absolute lifecycle control.*
+> *An autonomous AI agent workforce where a supreme God-Agent commands, spawns, heals, and evolves an entire fleet of specialized workers — each with their own Google identity, API quota, and cognitive model.*
+
+**Version:** v2.8 · **Architecture:** Hierarchical Autonomous Workforce · **Last Audit:** 2026-04-17
 
 ---
 
-## 🧬 Architecture
+## 🧬 Core Philosophy — How Agents Interact
+
+Asclepius is not a chatbot with multiple personas. It is a **hierarchical workforce** where each agent:
+- Has its own **Gmail account** and **Gemini API key** (individual free-tier quota)
+- Runs its own **cognitive model** (Pro for architects, Flash for connectors, local Gemma for ops)
+- Cannot be confused with another agent — each has distinct authority and constraints
+
+### The Orchestration Hierarchy
 
 ```
-                    ┌────────────────────────────────┐
-                    │         GOD-AGENT 👑            │
-                    │   Lead Architect & Orchestrator │
-                    │   Model: gemini-3.1-pro-preview │
-                    │                                │
-                    │   POWERS:                      │
-                    │   /spawn   /terminate           │
-                    │   /pause   /resume              │
-                    │   /grant-skill  /evolve         │
-                    │   /fleet-status                 │
-                    └────────┬───────────────────────┘
-                             │ Absolute Authority
-              ┌──────────────┼──────────────┐
-              ▼              ▼              ▼
-     ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-     │  COO-Agent   │ │ Jules-Bridge │ │  Healer-01   │
-     │  Operations  │ │  Connector   │ │  Code Repair │
-     │  🛡️ Protected │ │              │ │              │
-     └──────────────┘ └──────────────┘ └──────────────┘
-              ▲                                ▲
-              │ Delegation                     │ Auto-Heal
-              └── API Quota, Scheduling ───────┘
+   ┌──────────────────────────────────────────────────────┐
+   │                   HUMAN OPERATOR                      │
+   │            (Types into Command Center)                │
+   └───────────────────────┬──────────────────────────────┘
+                           │ Default route (no prefix)
+                           ▼
+   ┌──────────────────────────────────────────────────────┐
+   │                   GOD-AGENT 👑                        │
+   │  Brain: gemini-3.1-pro-preview                       │
+   │  Fallback: gemma4:e4b (local)                        │
+   │  Authority: Absolute. Can /spawn, /terminate, /evolve│
+   │  Lifecycle: Boot → Sweep → Delegate → Hibernate      │
+   │  Wakes on: Error interrupt OR 5-hour timer            │
+   └────────┬────────────────┬────────────────┬───────────┘
+            │ Delegation     │ Platform Sync  │ Error Route
+   ┌────────▼──────┐  ┌─────▼────────┐  ┌───▼──────────┐
+   │  COO-Agent    │  │ Jules-Bridge  │  │  Healer-01   │
+   │  gemma4 local │  │ flash-lite    │  │ gemini-pro   │
+   │  "Always On"  │  │ "Always Sync" │  │ "On Demand"  │
+   │  🛡️ Protected  │  │ Budget: 100K  │  │ /analyze,/fix│
+   │  Orchestrate  │  │ WSS Connect   │  │ Code Repair  │
+   └───────────────┘  └──────────────┘  └──────────────┘
 ```
 
-### God-Agent Supremacy
+### How State Passes Between Agents
 
-The God-Agent is not just an agent — it is the **runtime orchestrator** with absolute authority:
+Agents do **not** talk to each other directly. Communication happens through three mechanisms:
 
-- **Spawn** new specialized agents dynamically (`/spawn <name> <role>`)
-- **Terminate** agents no longer needed (`/terminate <agent>`)
-- **Pause/Resume** agents to conserve resources (`/pause`, `/resume`)
-- **Grant & Revoke Skills** on any agent (`/grant-skill`, `/revoke-skill`)
-- **Self-Evolve** through recursive improvement (`/evolve`)
-- **Fleet Status** — full diagnostic report (`/fleet-status`)
+| Mechanism | How It Works |
+|---|---|
+| **System Context String** | Before every LLM call, a ~4KB context snapshot is injected containing all agent statuses, project milestones, sandbox results, and recent logs. Every agent "sees" the whole system. |
+| **Hive-Mind Transcript** | The shared chat stream in CommandCenter — agents can read each other's recent outputs because the transcript is included in context. |
+| **JSON Action Side-Effects** | Agents output `json:action` blocks that the system executes silently (spawn agents, schedule tasks, update goals). These mutations appear in the next agent's context window. |
 
-Protected agents (God-Agent, COO-Agent) cannot be terminated.
-
-### v2.4 Autonomy Engines
-- **Tactical Hibernation:** The God-Agent boots, sweeps the system, delegates to the COO-Agent, and autonomously switches off into hibernation to save CPU/Memory/API limits. It uniquely wakes on Error (Interrupt) or expiration of a mandatory 5-hour cycle.
-- **Future Projection:** The God-Agent continually cross-references project requirements with active agent skills. If a technical gap exists, it bypasses the user and autonomously calls `[SPAWN_AGENT]` JSON payloads to manifest the required specialist.
-- **COO JSON Scheduling:** The COO-Agent converts high-level instructions into concrete tasks via `[SCHEDULE_TASK]` actions, directly inserting processes into the UI's Background Scheduler Engine.
-- **Hive-Mind Transcript:** Instead of isolated prompts, agents read a continuous multi-agent sliding context window, allowing them to read and react to the actual outputs of other agents in real-time.
-- **Persistent Fleet Memory:** Supported by native `localStorage` architecture, closing tabs or instances prevents data loss. The God-Agent remembers exactly who it hired and the fleet picks up right where it left off.
-
-### v2.5 — API Intelligence & Project Management
-- **API Quota Management:** Gemini 429 rate limits are automatically detected, persisted in `localStorage` with exponential backoff (1m→15m cap), and the system seamlessly fails over to Ollama (`gemma4:e4b`) until the quota refreshes. The HUD shows a live countdown badge.
-- **Projects Module:** Full CRUD project management with milestones, GitHub URL linking, agent assignment, tech stack tags, priority levels, and animated progress tracking. Agents are project-aware — every system prompt includes live project context.
-- **Unified Sandbox:** Merged CodeAnalyzer + Sandbox into one testing workbench. Project-scoped AI analysis, structured error parsing (critical/warning/info), run history persistence, and one-click error-to-task conversion.
-- **Self-Healing Development Loop:** Errors detected in Sandbox auto-create resolution tasks → assigned to agents → agents fix → progress flows back to Project dashboard. Closed-loop autonomous development.
-- **`GRANT_SKILL` / `EVOLVE_AGENT` / `UPDATE_GOAL`:** God-Agent can autonomously grant skills to agents, evolve them (max all skills), and mark project milestones as completed via JSON actions.
-
-### v2.6 — Closed-Loop Error Resolution
-- **Smart Agent Routing:** Sandbox errors are routed to the best-fit agent using a skill-scoring algorithm (security bugs → security-skilled agents, code bugs → Healer-01, performance issues → performance specialists). God-Agent is only used as fallback.
-- **Command Center Event Feed:** Every sandbox analysis posts results (`[CRITICAL]`, `[WARNING]`, `[PASS]`) and task creation summaries (`[AUTO-TASK]`) directly into the Command Center transcript. All agents can see and react.
-- **Auto-Resolve Loop:** When a `[SANDBOX]` fix task completes, matching sandbox errors are automatically resolved. Project Health card updates in real-time.
-- **`RESOLVE_ERROR` Action:** Agents can autonomously mark sandbox errors as resolved from within the Command Center via `json:action` blocks.
-- **Health Badges:** Project list cards show live health indicators (green ✓ Clean / red ✗ N errors) based on most recent sandbox runs.
-
-### v2.7 — System Resilience & Human-in-the-Loop
-- **Precision AST Repair:** Sandbox errors now natively map `lineNumber`, `column`, and `filePath` directly into Healer-01's context window for surgical refactoring.
-- **Token Budget Constraints:** Agent routing heuristics now actively calculate token usage; overworked agents receive a soft-penalty (up to 50%) or a hard-block, ensuring workload distribution across the entire fleet.
-- **Manual Routing Override:** While the system auto-selects the optimal agent, clicking "Create Tasks" now opens a preview modal allowing human operators to manually re-route tasks via a UI dropdown prior to deployment.
-- **GitHub Milestone Sync:** Projects with a valid `githubUrl` feature a one-click Sync button that automatically fetches open issues via the GitHub REST API and maps them directly into active `ProjectGoal` milestones for the God-Agent to orchestrate.
-- **Aggressive Local Failover:** The `MODEL_FALLBACK_INIT` protocol instantly intercepts network drops, timeouts, and `401/403` API errors, migrating orchestration to local Ollama hardware (`gemma4:e4b`) while maintaining a silent 5-minute auto-recovery heartbeat to the cloud.
+> **Key Insight:** Jules-Bridge is a platform connector to the Jules sandbox — it is NOT a message bus between agents.
 
 ---
 
-## 💓 Heartbeat System
+## 💓 System Health — What The Numbers Actually Mean
 
-Every agent emits a periodic liveness signal — a **heartbeat** — proving it's alive and responsive.
+### The Dashboard "99% Health"
 
-| Status | Meaning | Visual |
+`avgHealth = average of all agents' health field`
+
+The `health` field initializes at 100 and is **never dynamically reduced** by any process. The only live health signal is the **Heartbeat System**.
+
+### Heartbeat System (Live)
+
+Every 3 seconds, each non-paused agent receives a simulated heartbeat. 98% success rate, 2% miss chance.
+
+| Status | Trigger | Visual |
 |---|---|---|
-| 🟢 **Alive** | Agent is responsive | Green pulse + sparkline |
-| 🟡 **Degraded** | 1 missed beat | Amber pulse |
-| 🟠 **Unresponsive** | 2+ missed beats | Red warning |
-| 🔴 **Dead** | Exceeded max missed beats | Flatline, God-Agent intervenes |
+| 🟢 Alive | 0 missed beats | Green pulse + sparkline |
+| 🟡 Degraded | 1 missed beat | Amber pulse |
+| 🟠 Unresponsive | 2+ missed beats | Red warning |
+| 🔴 Dead | Exceeded maxMissed | Flatline, God-Agent intervenes |
 
-**Sparkline visualization** on each agent card shows the last 20 heartbeat response times as a live SVG chart. Uptime percentage is shown as a badge.
+**Response time baselines:** God-Agent: 8ms, COO: 25ms, Workers: 15-55ms (+ 0-15ms jitter)
 
-| Agent | Interval | Max Missed | Reason |
-|---|---|---|---|
-| God-Agent | 5s | 5 | Critical — faster pulse, higher tolerance |
-| Workers | 10s | 3 | Standard monitoring |
+### CPU / Memory / Latency
+
+These are **simulated random walks** (±5 CPU, ±25 MB, ±10ms per 8-second tick). They do not reflect actual system resource usage.
+
+---
+
+## 🔑 Per-Agent Identity System (v2.8)
+
+Each agent can have its own Google identity and API credentials:
+
+| Agent | Email | API Key | Model | Free Quota |
+|---|---|---|---|---|
+| God-Agent | `asclepius.god@gmail.com` | `AIza...GOD` | gemini-3.1-pro | 1,500/day |
+| COO-Agent | `asclepius.coo@gmail.com` | `AIza...COO` | gemma4 (local) | 1,500/day |
+| Jules-Bridge | `asclepius.bridge@gmail.com` | `AIza...BRG` | flash-lite | 1,500/day |
+| Healer-01 | `asclepius.healer@gmail.com` | `AIza...HLR` | gemini-3.1-pro | 1,500/day |
+
+**Total fleet capacity: 6,000 free requests/day** (vs 1,500 with shared key).
+
+Configure in: Agent Card → ⚙️ Settings → 🔑 Credentials tab.
+
+### Credential Resolution Priority
+```
+Agent's personal API key → Agent's model field → Global settings (fallback)
+```
 
 ---
 
 ## ⚡ Skills System
 
-Skills are **specific, leveled competencies** — more granular than capabilities. Each skill has:
-
-- **Level** (1-5): Novice → Apprentice → Competent → Expert → Master
-- **XP**: Experience points toward next level
-- **Category**: engineering, analysis, operations, security, creative, meta
-- **Usage tracking**: Times used, last used timestamp
-
-### Skill Categories & Colors
-
-| Category | Color | Agents |
-|---|---|---|
-| `engineering` | Violet | All |
-| `analysis` | Sky Blue | Healer-01, COO |
-| `operations` | Amber | COO, God |
-| `security` | Rose | Healer-01 |
-| `creative` | Emerald | All |
-| `meta` | Gold | God-Agent only (Self-Healing, Self-Evolution) |
-
-### XP Thresholds
-
-```
-Level 1 → 2:   100 XP  (Novice → Apprentice)
-Level 2 → 3:   300 XP  (Apprentice → Competent)
-Level 3 → 4:   600 XP  (Competent → Expert)
-Level 4 → 5:  1000 XP  (Expert → Master)
-Level 5:       MAX      (No further leveling)
-```
+| Level | Name | XP to Next | Category Colors |
+|---|---|---|---|
+| 1 | Novice | 100 | `engineering` (violet), `analysis` (sky) |
+| 2 | Apprentice | 300 | `operations` (amber), `security` (rose) |
+| 3 | Competent | 600 | `creative` (emerald), `meta` (gold, God only) |
+| 4 | Expert | 1000 | |
+| 5 | Master | MAX | |
 
 ---
 
 ## 🎯 Lookback-Forward Execution Strategy
 
-The core execution doctrine for all agents:
-
 ```
-1. LOOKBACK   — Ingest full system context (logs + history + agent states)
-2. COMPREHEND — Understand the current situation deeply
-3. GRANULIZE  — Break down into atomic, actionable tasks
-4. FORWARD    — Execute with precision, then verify
+LOOKBACK    → Read full context (logs + history + fleet + projects)
+COMPREHEND  → Map the landscape, understand what needs to happen
+GRANULIZE   → Decompose into atomic, actionable tasks
+FORWARD     → Execute with precision, then loop back
 ```
 
-Every agent command is enriched with:
-- Recent system logs (last 15 entries)
-- All agent states, skills, and heartbeat status
-- Target agent's role-specific system prompt
-- Full conversation history for context continuity
+Every agent call receives: fleet status, active projects, sandbox health, last 15 logs, and chat transcript.
 
 ---
 
 ## 🖥️ Command Reference
 
-### Lifecycle Commands (God-Agent)
-| Command | Description |
-|---|---|
-| `/spawn <name> <role>` | Create a new agent with role-based default skills |
-| `/terminate <agent>` | Destroy an agent (protected agents immune) |
-| `/pause <agent>` | Freeze agent, stop heartbeat, remove from pool |
-| `/resume <agent>` | Unfreeze paused agent, restart heartbeat |
-
-### Skill Commands
-| Command | Description |
-|---|---|
-| `/grant-skill <agent> <skill> <category> <level>` | Grant a skill to an agent |
-| `/revoke-skill <agent> <skill name>` | Remove a skill from an agent |
-| `/evolve-agent <agent>` | Analyze performance, recommend upgrades |
-| `/evolve` | God-Agent recursive self-improvement |
-
-### Status Commands
-| Command | Description |
-|---|---|
-| `/fleet-status` | Full fleet report with heartbeats, skills, budgets |
-| `/help` | Show all available commands |
-
-### Agent Routing
-| Syntax | Target |
-|---|---|
-| `God-Agent: <message>` | Route to God-Agent |
-| `COO: <message>` | Route to COO-Agent |
-| `Healer: <message>` | Route to Healer-01 |
-| `/analyze <code>` | Send to Healer for analysis |
+| Command | Target | Description |
+|---|---|---|
+| `/spawn <name> <role>` | God-Agent | Create a new agent |
+| `/terminate <agent>` | God-Agent | Destroy an agent (protected immune) |
+| `/pause <agent>` | God-Agent | Hibernate agent |
+| `/resume <agent>` | God-Agent | Wake agent |
+| `/grant-skill <agent> <skill>` | God-Agent | Grant a leveled skill |
+| `/evolve` | God-Agent | Recursive self-improvement |
+| `/analyze <code>` | Healer-01 | Deep code analysis |
+| `/fix <code>` | Healer-01 | Code repair |
+| `God-Agent: <msg>` | God-Agent | Direct routing |
+| `COO: <msg>` | COO-Agent | Direct routing |
+| No prefix | God-Agent | Default target |
 
 ---
 
@@ -186,8 +153,8 @@ Every agent command is enriched with:
 | Frontend | React 19, Vite, TypeScript |
 | Styling | Tailwind CSS 4, shadcn/ui |
 | Animation | Motion (Framer Motion) |
-| AI (Cloud) | Google Gemini API |
-| AI (Local) | Ollama |
+| AI (Cloud) | Google Gemini API (per-agent keys) |
+| AI (Local) | Ollama (per-agent models) |
 | Charts | Custom SVG sparklines |
 
 ---
@@ -195,57 +162,63 @@ Every agent command is enriched with:
 ## 🚀 Quick Start
 
 ```bash
-# Install dependencies
 npm install
-
-# Set API key (optional — for cloud AI)
-export GEMINI_API_KEY="your-key-here"
-
-# Start dev server
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
+
+Set Gemini API key in: ⚙️ Settings → API Key, or per-agent in Agent Config → Credentials.
 
 ---
 
 ## 📁 Project Structure
 
 ```
-src/
-├── App.tsx                  # Main orchestrator — agents, heartbeat engine, sandbox wiring
-├── types.ts                 # Complete type system (Agent, Heartbeat, Skills, Project, Sandbox)
-├── index.css                # Premium dark theme design system
-├── main.tsx                 # Entry point
-├── components/
-│   ├── AgentCard.tsx        # Agent card — heartbeat sparkline, skills, lifecycle controls
-│   ├── AgentConfig.tsx      # Full agent configuration modal (model, skills, budget)
-│   ├── Sidebar.tsx          # Collapsible navigation with tooltips
-│   ├── CommandCenter.tsx    # Terminal — lifecycle/skill commands, LLM chat, action execution
-│   ├── LogViewer.tsx        # Animated live log stream
-│   ├── Sandbox.tsx          # Unified testing workbench — project-aware AI analysis
-│   ├── ProjectsPage.tsx     # Full CRUD project management with health badges
-│   ├── TaskScheduler.tsx    # Automated task scheduling
-│   └── Settings.tsx         # Provider configuration (Gemini/Ollama)
-├── services/
-│   ├── llm.ts               # Unified LLM service (Gemini + Ollama)
-│   ├── gemini.ts            # Gemini API client
-│   └── ollama.ts            # Ollama local client
-└── lib/
-    └── utils.ts             # Utility functions
+asclepius/
+├── CONTEXT_MAP.md                ← LIVING CONTEXT MAP — the Amnesia Guard
+├── README.md                     ← This file
+├── src/
+│   ├── App.tsx                   ← [56KB] ALL state, agents, heartbeat, simulation, persistence
+│   ├── types.ts                  ← ALL interfaces (Agent, AgentCredentials, Project, Sandbox, LLM)
+│   ├── GOD_AGENT.md              ← God-Agent context document
+│   ├── components/
+│   │   ├── CommandCenter.tsx     ← [58KB] Chat, routing, auto-heal, JSON actions, quota
+│   │   ├── AgentConfig.tsx       ← [51KB] Agent edit dialog (7 tabs incl. Credentials)
+│   │   ├── AgentCard.tsx         ← [28KB] Agent card, sparklines, health bars
+│   │   ├── Sandbox.tsx           ← [32KB] Code analysis, error routing, Manual Override
+│   │   ├── ProjectsPage.tsx      ← [35KB] Projects, milestones, GitHub sync
+│   │   ├── TaskScheduler.tsx     ← [13KB] Task scheduling
+│   │   ├── Settings.tsx          ← [20KB] Global LLM settings
+│   │   ├── AGENTS.md             ← Fleet context document
+│   │   ├── COO_AGENT.md          ← COO-Agent context document
+│   │   ├── HEALER_AGENT.md       ← Healer-01 context document
+│   │   ├── JULES_BRIDGE.md       ← Jules-Bridge context document
+│   │   └── COMMAND_CENTER.md     ← Command Center context document
+│   └── services/
+│       ├── llm.ts                ← [11KB] Dual-core routing, failover, credential resolver
+│       ├── gemini.ts             ← [4KB] Gemini API wrapper
+│       ├── ollama.ts             ← [2KB] Ollama wrapper
+│       └── SERVICES.md           ← LLM services context document
+└── docs/
+    └── STRATEGY.md               ← Lookback-Forward execution philosophy
 ```
 
 ---
 
-## 📚 Documentation
+## 📚 Documentation Index
 
-| Document | Description |
+| Document | Purpose |
 |---|---|
-| [GOD_AGENT.md](src/GOD_AGENT.md) | God-Agent architecture, self-healing, self-evolution |
-| [AGENTS.md](src/AGENTS.md) | Worker fleet, heartbeat simulation, agent types |
-| [COMMAND_CENTER.md](src/COMMAND_CENTER.md) | Terminal interface, routing, auto-heal pipeline |
-| [SERVICES.md](src/SERVICES.md) | LLM abstraction, provider switching, rate limits |
-| [STRATEGY.md](docs/STRATEGY.md) | Lookback-Forward execution philosophy |
+| [CONTEXT_MAP.md](CONTEXT_MAP.md) | **The Amnesia Guard** — deep-scan architecture, invariants, context leaks, scaling strategy |
+| [GOD_AGENT.md](src/GOD_AGENT.md) | God-Agent identity, 11 skills, dual-core routing, 7 protocols |
+| [COO_AGENT.md](src/components/COO_AGENT.md) | COO-Agent delegation protocol, task decomposition |
+| [HEALER_AGENT.md](src/components/HEALER_AGENT.md) | Healer-01 analysis pipeline, Sandbox integration |
+| [JULES_BRIDGE.md](src/components/JULES_BRIDGE.md) | Jules-Bridge WebSocket sync |
+| [AGENTS.md](src/components/AGENTS.md) | Fleet overview, type system, heartbeats, skills, budgets |
+| [COMMAND_CENTER.md](src/components/COMMAND_CENTER.md) | Terminal UI, routing, auto-heal, JSON actions |
+| [SERVICES.md](src/services/SERVICES.md) | LLM backends, failover engine |
+| [STRATEGY.md](docs/STRATEGY.md) | Lookback-Forward execution doctrine |
 
 ---
 
