@@ -32,6 +32,9 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
+  SelectSeparator,
 } from "@/components/ui/select";
 import {
   Dialog,
@@ -69,8 +72,10 @@ import {
   CheckCircle2,
   ExternalLink,
   ArrowRight,
+  RefreshCw,
 } from "lucide-react";
 import { testConnection } from "@/src/services/llm";
+import { listOllamaModels, OllamaModel } from "@/src/services/ollama";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -225,6 +230,27 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
   const [position, setPosition] = React.useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = React.useState(false);
   const dragStartPos = React.useRef({ x: 0, y: 0 });
+
+  const [ollamaModels, setOllamaModels] = React.useState<OllamaModel[]>([]);
+  const [isRefreshingOllama, setIsRefreshingOllama] = React.useState(false);
+
+  const refreshOllamaModels = async () => {
+    setIsRefreshingOllama(true);
+    try {
+      const models = await listOllamaModels(credOllamaUrl || "http://localhost:11434");
+      setOllamaModels(models);
+    } catch (err) {
+      setOllamaModels([]);
+    } finally {
+      setIsRefreshingOllama(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (provider === "ollama") {
+      refreshOllamaModels();
+    }
+  }, [provider, credOllamaUrl]);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest("button")) return;
@@ -682,9 +708,27 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
-                        Model Name
-                      </Label>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
+                          Model Name
+                        </Label>
+                        {provider === "ollama" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={refreshOllamaModels}
+                            disabled={isRefreshingOllama}
+                            className="h-6 text-[9px] uppercase tracking-wider text-muted-foreground/50 hover:text-foreground"
+                          >
+                            {isRefreshingOllama ? (
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            ) : (
+                              <RefreshCw className="w-3 h-3 mr-1" />
+                            )}
+                            Refresh
+                          </Button>
+                        )}
+                      </div>
                       {provider === "gemini" ? (
                         <Select value={model} onValueChange={setModel}>
                           <SelectTrigger className="bg-secondary/30 border-border/50 text-sm h-10">
@@ -700,12 +744,48 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                           </SelectContent>
                         </Select>
                       ) : (
-                        <Input
-                          value={model}
-                          onChange={(e) => setModel(e.target.value)}
-                          placeholder="e.g. gemma4, llama3, mistral"
-                          className="bg-secondary/30 border-border/50 text-sm h-10"
-                        />
+                        <Select value={model} onValueChange={setModel}>
+                          <SelectTrigger className="bg-secondary/30 border-border/50 text-sm h-10">
+                            <SelectValue placeholder="Select a model" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-border/50 max-h-60">
+                            <SelectGroup>
+                              <SelectLabel className="text-[9px] uppercase tracking-widest text-muted-foreground/40">
+                                Local Models
+                              </SelectLabel>
+                              {ollamaModels.length > 0 ? (
+                                ollamaModels.map((m) => (
+                                  <SelectItem key={m.name} value={m.name} className="text-xs">
+                                    <div className="flex items-center justify-between w-full gap-4">
+                                      <span>{m.name}</span>
+                                      <span className="text-[9px] text-muted-foreground/40">
+                                        {(m.size / 1024 / 1024 / 1024).toFixed(1)}GB
+                                      </span>
+                                    </div>
+                                  </SelectItem>
+                                ))
+                              ) : (
+                                <SelectItem value={model || "gemma4:e4b"} className="text-xs">
+                                  {model || "gemma4:e4b"} (Current)
+                                </SelectItem>
+                              )}
+                            </SelectGroup>
+                            <SelectSeparator />
+                            <SelectGroup>
+                              <SelectLabel className="text-[9px] uppercase tracking-widest text-muted-foreground/40">
+                                Cloud Models
+                              </SelectLabel>
+                              {[{name: "gemma2:cloud"}, {name: "llama3:cloud"}, {name: "mistral:cloud"}].map((m) => (
+                                <SelectItem key={m.name} value={m.name} className="text-xs">
+                                  <div className="flex items-center justify-between w-full gap-4">
+                                    <span>{m.name}</span>
+                                    <Badge variant="secondary" className="text-[7px] h-3.5 px-1 bg-sky-500/10 text-sky-400 border-0">CLOUD</Badge>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
                       )}
                     </div>
 
@@ -1414,15 +1494,68 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
 
                       {/* Ollama Model */}
                       <div className="space-y-2">
-                        <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
-                          Ollama Model
-                        </Label>
-                        <Input
-                          value={credOllamaModel}
-                          onChange={(e) => setCredOllamaModel(e.target.value)}
-                          placeholder="gemma4:e4b (global default)"
-                          className="bg-secondary/30 border-border/50 text-sm font-mono h-10"
-                        />
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
+                            Ollama Model
+                          </Label>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={refreshOllamaModels}
+                            disabled={isRefreshingOllama}
+                            className="h-6 text-[9px] uppercase tracking-wider text-muted-foreground/50 hover:text-foreground"
+                          >
+                            {isRefreshingOllama ? (
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            ) : (
+                              <RefreshCw className="w-3 h-3 mr-1" />
+                            )}
+                            Refresh
+                          </Button>
+                        </div>
+                        <Select value={credOllamaModel} onValueChange={setCredOllamaModel}>
+                          <SelectTrigger className="bg-secondary/30 border-border/50 text-sm h-10">
+                            <SelectValue placeholder="Use global default" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-border/50 max-h-60">
+                            <SelectGroup>
+                              <SelectLabel className="text-[9px] uppercase tracking-widest text-muted-foreground/40">
+                                Local Models
+                              </SelectLabel>
+                              <SelectItem value=" " className="text-xs">Use global default</SelectItem>
+                              {ollamaModels.length > 0 ? (
+                                ollamaModels.map((m) => (
+                                  <SelectItem key={m.name} value={m.name} className="text-xs">
+                                    <div className="flex items-center justify-between w-full gap-4">
+                                      <span>{m.name}</span>
+                                      <span className="text-[9px] text-muted-foreground/40">
+                                        {(m.size / 1024 / 1024 / 1024).toFixed(1)}GB
+                                      </span>
+                                    </div>
+                                  </SelectItem>
+                                ))
+                              ) : (
+                                <SelectItem value={credOllamaModel || "gemma4:e4b"} className="text-xs" disabled>
+                                  {credOllamaModel || "gemma4:e4b"} (Current)
+                                </SelectItem>
+                              )}
+                            </SelectGroup>
+                            <SelectSeparator />
+                            <SelectGroup>
+                              <SelectLabel className="text-[9px] uppercase tracking-widest text-muted-foreground/40">
+                                Cloud Models
+                              </SelectLabel>
+                              {[{name: "gemma2:cloud"}, {name: "llama3:cloud"}, {name: "mistral:cloud"}].map((m) => (
+                                <SelectItem key={m.name} value={m.name} className="text-xs">
+                                  <div className="flex items-center justify-between w-full gap-4">
+                                    <span>{m.name}</span>
+                                    <Badge variant="secondary" className="text-[7px] h-3.5 px-1 bg-sky-500/10 text-sky-400 border-0">CLOUD</Badge>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
 
