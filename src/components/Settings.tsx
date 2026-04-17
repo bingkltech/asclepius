@@ -255,7 +255,7 @@ export function Settings({ settings, onSettingsChange }: SettingsProps) {
                   <SelectTrigger className="w-full bg-secondary/30 border-border/50 text-xs">
                     <SelectValue placeholder="Select a model" />
                   </SelectTrigger>
-                  <SelectContent className="bg-card border-border/50">
+                  <SelectContent className="border-border/50">
                     <SelectGroup>
                       <SelectLabel className="text-[9px] uppercase tracking-widest text-muted-foreground/40">
                         Local Models

@@ -731,10 +731,10 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                       </div>
                       {provider === "gemini" ? (
                         <Select value={model} onValueChange={setModel}>
-                          <SelectTrigger className="bg-secondary/30 border-border/50 text-sm h-10">
+                          <SelectTrigger className="w-full bg-secondary/30 border-border/50 text-sm h-10">
                             <SelectValue placeholder="Select model" />
                           </SelectTrigger>
-                          <SelectContent className="bg-card border-border/50">
+                          <SelectContent className="border-border/50">
                             <SelectItem value="gemini-3.1-pro-preview" className="text-xs">
                               gemini-3.1-pro-preview (Best)
                             </SelectItem>
@@ -745,10 +745,10 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                         </Select>
                       ) : (
                         <Select value={model} onValueChange={setModel}>
-                          <SelectTrigger className="bg-secondary/30 border-border/50 text-sm h-10">
+                          <SelectTrigger className="w-full bg-secondary/30 border-border/50 text-sm h-10">
                             <SelectValue placeholder="Select a model" />
                           </SelectTrigger>
-                          <SelectContent className="bg-card border-border/50 max-h-60">
+                          <SelectContent className="border-border/50 max-h-60">
                             <SelectGroup>
                               <SelectLabel className="text-[9px] uppercase tracking-widest text-muted-foreground/40">
                                 Local Models
@@ -1463,10 +1463,10 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                         Preferred Gemini Model
                       </Label>
                       <Select value={credGeminiModel} onValueChange={setCredGeminiModel}>
-                        <SelectTrigger className="bg-secondary/30 border-border/50 text-sm h-10">
+                        <SelectTrigger className="w-full bg-secondary/30 border-border/50 text-sm h-10">
                           <SelectValue placeholder="Use global default" />
                         </SelectTrigger>
-                        <SelectContent className="bg-card border-border/50">
+                        <SelectContent className="border-border/50">
                           <SelectItem value=" " className="text-xs">Use global default</SelectItem>
                           <SelectItem value="gemini-3.1-pro-preview" className="text-xs">gemini-3.1-pro-preview (Best)</SelectItem>
                           <SelectItem value="gemini-3.1-flash-lite-preview" className="text-xs">gemini-3.1-flash-lite-preview (Fast)</SelectItem>
@@ -1514,10 +1514,10 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                           </Button>
                         </div>
                         <Select value={credOllamaModel} onValueChange={setCredOllamaModel}>
-                          <SelectTrigger className="bg-secondary/30 border-border/50 text-sm h-10">
+                          <SelectTrigger className="w-full bg-secondary/30 border-border/50 text-sm h-10">
                             <SelectValue placeholder="Use global default" />
                           </SelectTrigger>
-                          <SelectContent className="bg-card border-border/50 max-h-60">
+                          <SelectContent className="border-border/50 max-h-60">
                             <SelectGroup>
                               <SelectLabel className="text-[9px] uppercase tracking-widest text-muted-foreground/40">
                                 Local Models
