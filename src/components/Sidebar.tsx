@@ -154,6 +154,7 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
 
       {/* Collapse toggle */}
       <button
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         onClick={() => setCollapsed(!collapsed)}
         className="absolute -right-3 top-20 w-6 h-6 rounded-full bg-card border border-border/50 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-all z-20 shadow-lg"
       >

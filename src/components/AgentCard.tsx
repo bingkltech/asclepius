@@ -740,6 +740,7 @@ export const AgentCard: React.FC<AgentCardProps> = ({
             ) : onPause && !isGod ? (
               <button
                 onClick={() => onPause(agent.id)}
+                aria-label="Pause agent"
                 className="flex items-center gap-1 px-2 h-7 rounded-md text-[10px] font-medium text-muted-foreground hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
               >
                 <Pause className="w-3 h-3" />
@@ -748,6 +749,7 @@ export const AgentCard: React.FC<AgentCardProps> = ({
             {onTerminate && !agent.isProtected && (
               <button
                 onClick={() => onTerminate(agent.id)}
+                aria-label="Terminate agent"
                 className="flex items-center gap-1 px-2 h-7 rounded-md text-[10px] font-medium text-muted-foreground/30 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
               >
                 <Trash2 className="w-3 h-3" />
