@@ -100,7 +100,7 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
           if (collapsed) {
             return (
               <Tooltip key={item.id}>
-                <TooltipTrigger asChild>{button}</TooltipTrigger>
+                <TooltipTrigger >{button}</TooltipTrigger>
                 <TooltipContent side="right" sideOffset={8} className="text-xs">
                   {item.label}
                 </TooltipContent>
@@ -140,7 +140,7 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
             if (collapsed) {
               return (
                 <Tooltip key={item.label}>
-                  <TooltipTrigger asChild>{link}</TooltipTrigger>
+                  <TooltipTrigger >{link}</TooltipTrigger>
                   <TooltipContent side="right" sideOffset={8} className="text-xs">
                     {item.label}
                   </TooltipContent>

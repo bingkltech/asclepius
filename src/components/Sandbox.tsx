@@ -41,7 +41,7 @@ import {
   Zap,
   XCircle,
   Info,
-  ListTodo,
+  ListTodo, Archive,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
@@ -631,7 +631,7 @@ export function Sandbox({ settings, projects = [], agents = [], sandboxRuns = []
         <DialogContent className="sm:max-w-[600px] bg-card/95 backdrop-blur-xl border-border/50">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Boxes className="w-5 h-5 text-amber-400" />
+              <Archive className="w-5 h-5 text-amber-400" />
               Manual Routing Override
             </DialogTitle>
             <DialogDescription>

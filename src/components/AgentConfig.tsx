@@ -50,6 +50,7 @@ import {
   Heart,
   Sparkles,
   Shield,
+  ShieldCheck,
   Wallet,
   Wrench,
   Plus,
@@ -221,6 +222,27 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
   const [wizardStep, setWizardStep] = React.useState(1);
   const [isTestingKey, setIsTestingKey] = React.useState(false);
   const [wizardError, setWizardError] = React.useState("");
+  const [position, setPosition] = React.useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = React.useState(false);
+  const dragStartPos = React.useRef({ x: 0, y: 0 });
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest("button")) return;
+    setIsDragging(true);
+    dragStartPos.current = { x: e.clientX - position.x, y: e.clientY - position.y };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    setPosition({ x: e.clientX - dragStartPos.current.x, y: e.clientY - dragStartPos.current.y });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    setIsDragging(false);
+    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+  };
+
 
   // Reset to agent values when agent changes
   React.useEffect(() => {
@@ -437,9 +459,16 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] p-0 bg-card border-border/50 overflow-hidden">
+      <DialogContent className="resize overflow-hidden flex flex-col bg-background/95 backdrop-blur-xl border-border/50 p-0 max-w-none w-[800px] h-[600px] min-w-[600px] min-h-[400px] max-w-[95vw] max-h-[95vh]"
+        style={{ transform: `translate(calc(-50% + ${position.x}px), calc(-50% + ${position.y}px))` }}>
         {/* Header */}
-        <div className="px-6 pt-6 pb-4 border-b border-border/20">
+        <div
+          className="px-6 pt-6 pb-4 border-b border-border/20 cursor-move select-none"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        >
           <div className="flex items-center gap-3">
             <div
               className={cn(
@@ -475,7 +504,7 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
           </div>
         </div>
 
-        <div className="flex h-[520px]">
+        <div className="flex flex-1 overflow-hidden min-h-0">
           {/* Sidebar Tabs */}
           <div className="w-44 shrink-0 border-r border-border/20 p-3 space-y-1">
             <TabButton
@@ -536,7 +565,7 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                   </h3>
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
+                      <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
                         Agent Name
                       </Label>
                       <Input
@@ -553,7 +582,7 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
+                      <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
                         Role / Title
                       </Label>
                       <Input
@@ -617,7 +646,7 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                   </h3>
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
+                      <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
                         Provider
                       </Label>
                       <div className="grid grid-cols-2 gap-3">
@@ -653,12 +682,12 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
+                      <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
                         Model Name
                       </Label>
                       {provider === "gemini" ? (
                         <Select value={model} onValueChange={setModel}>
-                          <SelectTrigger className="bg-secondary/30 border-border/50 text-xs">
+                          <SelectTrigger className="bg-secondary/30 border-border/50 text-sm h-10">
                             <SelectValue placeholder="Select model" />
                           </SelectTrigger>
                           <SelectContent className="bg-card border-border/50">
@@ -675,7 +704,7 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                           value={model}
                           onChange={(e) => setModel(e.target.value)}
                           placeholder="e.g. gemma4, llama3, mistral"
-                          className="bg-secondary/30 border-border/50 text-xs"
+                          className="bg-secondary/30 border-border/50 text-sm h-10"
                         />
                       )}
                     </div>
@@ -698,7 +727,7 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                       </div>
                       {julesEnabled && (
                         <div className="space-y-2">
-                          <Label className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
+                          <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
                             Jules Endpoint
                           </Label>
                           <Input
@@ -780,7 +809,7 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
+                      <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
                         Heartbeat Interval (minutes)
                       </Label>
                       <div className="flex items-center gap-3">
@@ -803,7 +832,7 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
+                      <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
                         Max Missed Beats Before Dead
                       </Label>
                       <div className="flex items-center gap-3">
@@ -1035,7 +1064,7 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
+                      <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
                         Daily Token Limit
                       </Label>
                       <Input
@@ -1047,11 +1076,11 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
+                      <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
                         Priority Level
                       </Label>
                       <Select value={budgetPriority} onValueChange={(v: any) => setBudgetPriority(v)}>
-                        <SelectTrigger className="bg-secondary/30 border-border/50 text-xs">
+                        <SelectTrigger className="bg-secondary/30 border-border/50 text-sm h-10">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-card border-border/50">
@@ -1072,11 +1101,11 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
+                      <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
                         At Limit Behavior
                       </Label>
                       <Select value={budgetOverage} onValueChange={(v: any) => setBudgetOverage(v)}>
-                        <SelectTrigger className="bg-secondary/30 border-border/50 text-xs">
+                        <SelectTrigger className="bg-secondary/30 border-border/50 text-sm h-10">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-card border-border/50">
@@ -1317,14 +1346,14 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                   <div className="space-y-4">
                     {/* Email */}
                     <div className="space-y-2">
-                      <Label className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60 flex items-center gap-1.5">
+                      <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90 flex items-center gap-1.5">
                         <Mail className="w-3 h-3" /> Gmail Identity
                       </Label>
                       <Input
                         value={credEmail}
                         onChange={(e) => setCredEmail(e.target.value)}
                         placeholder="asclepius.god.agent@gmail.com"
-                        className="bg-secondary/30 border-border/50 text-xs font-mono"
+                        className="bg-secondary/30 border-border/50 text-sm font-mono h-10"
                       />
                       <p className="text-[9px] text-muted-foreground/40">
                         The Google account this agent authenticates as. Used for Jules sandbox and Gemini API.
@@ -1333,7 +1362,7 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
 
                     {/* Gemini API Key */}
                     <div className="space-y-2">
-                      <Label className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60 flex items-center gap-1.5">
+                      <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90 flex items-center gap-1.5">
                         <KeyRound className="w-3 h-3" /> Personal Gemini API Key
                       </Label>
                       <Input
@@ -1341,7 +1370,7 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                         value={credGeminiKey}
                         onChange={(e) => setCredGeminiKey(e.target.value)}
                         placeholder="AIza..."
-                        className="bg-secondary/30 border-border/50 text-xs font-mono"
+                        className="bg-secondary/30 border-border/50 text-sm font-mono h-10"
                       />
                       <p className="text-[9px] text-muted-foreground/40">
                         This agent's own API key. Each key gets 1,500 free requests/day. Falls back to global key if empty.
@@ -1350,11 +1379,11 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
 
                     {/* Gemini Model */}
                     <div className="space-y-2">
-                      <Label className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
+                      <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
                         Preferred Gemini Model
                       </Label>
                       <Select value={credGeminiModel} onValueChange={setCredGeminiModel}>
-                        <SelectTrigger className="bg-secondary/30 border-border/50 text-xs">
+                        <SelectTrigger className="bg-secondary/30 border-border/50 text-sm h-10">
                           <SelectValue placeholder="Use global default" />
                         </SelectTrigger>
                         <SelectContent className="bg-card border-border/50">
@@ -1372,27 +1401,27 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
 
                       {/* Ollama URL */}
                       <div className="space-y-2">
-                        <Label className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
+                        <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
                           Ollama Endpoint
                         </Label>
                         <Input
                           value={credOllamaUrl}
                           onChange={(e) => setCredOllamaUrl(e.target.value)}
                           placeholder="http://localhost:11434 (global default)"
-                          className="bg-secondary/30 border-border/50 text-xs font-mono"
+                          className="bg-secondary/30 border-border/50 text-sm font-mono h-10"
                         />
                       </div>
 
                       {/* Ollama Model */}
                       <div className="space-y-2">
-                        <Label className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
+                        <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
                           Ollama Model
                         </Label>
                         <Input
                           value={credOllamaModel}
                           onChange={(e) => setCredOllamaModel(e.target.value)}
                           placeholder="gemma4:e4b (global default)"
-                          className="bg-secondary/30 border-border/50 text-xs font-mono"
+                          className="bg-secondary/30 border-border/50 text-sm font-mono h-10"
                         />
                       </div>
                     </div>
