@@ -1,0 +1,5 @@
+1. Import `Tooltip`, `TooltipTrigger`, `TooltipContent` from `@/components/ui/tooltip` and `Info` from `lucide-react` in `src/components/Settings.tsx`.
+2. Wrap `Gemini Model` and `Gemini API Key` labels with a `flex items-center gap-1.5` div, and append a `Tooltip` with contextual help.
+3. Enhance the `Input` for `Gemini Model` and `Gemini API Key` with immediate validation feedback (a `CheckCircle2` icon appearing if a value exists), and transition-all utility classes. Add `aria-live="polite"` to the container.
+4. Run pre-commit instructions.
+5. Submit changes.
