@@ -350,14 +350,16 @@ Every active timer in the system:
 
 | Timer | Interval | Location | Purpose |
 |---|---|---|---|
-| Heartbeat Engine | 3,000ms | `App.tsx` line 429 | Global liveness tick for all agents |
-| Agent Simulation | 8,000ms | `App.tsx` line 825 | Random agent activity + metric fluctuation |
-| Task Scheduler | 5,000ms | `App.tsx` line 594 | Check and execute scheduled tasks |
-| Boot Sequence | 2,000ms (once) | `App.tsx` line 343 | God-Agent initial Lookback sweep |
-| Hibernation | 4,000ms (once) | `App.tsx` line 356 | God-Agent enters Tactical Hibernation |
-| 5-Hour Audit | 18,000,000ms | `App.tsx` line 384 | Mandatory wake cycle |
+| Heartbeat Engine | 3,000ms | `App.tsx` | Global liveness tick for all agents |
+| Agent Simulation | 8,000ms | `App.tsx` | Random agent activity + metric fluctuation |
+| Task Scheduler | 5,000ms | `App.tsx` | Check and execute scheduled tasks |
+| **Recovery Watchdog** | **15,000ms** | `App.tsx` | Auto-restarts dead agents, posts recovery alerts |
+| **Health Regen + Quota Reset** | **30,000ms** | `App.tsx` | +5hp/tick for alive agents; daily quota reset at midnight |
+| Boot Sequence | 2,000ms (once) | `App.tsx` | Fleet Identity Init + God-Agent Lookback sweep |
+| Hibernation | 4,000ms (once) | `App.tsx` | God-Agent enters Tactical Hibernation |
+| 5-Hour Audit | 18,000,000ms | `App.tsx` | Mandatory wake cycle |
 
-> **INVARIANT:** The heartbeat tick (3s) MUST be faster than the agent simulation tick (8s). If reversed, heartbeat status would lag behind visible agent activity.
+> **INVARIANT:** The heartbeat tick (3s) MUST be faster than the recovery watchdog (15s). The recovery watchdog should never run before the heartbeat has had multiple chances to detect failure.
 
 ---
 
