@@ -64,7 +64,12 @@ import {
   Clock,
   KeyRound,
   Mail,
+  Loader2,
+  CheckCircle2,
+  ExternalLink,
+  ArrowRight,
 } from "lucide-react";
+import { testConnection } from "@/src/services/llm";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -211,6 +216,12 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
   const [credOllamaUrl, setCredOllamaUrl] = React.useState(agent.credentials?.ollamaBaseUrl || "");
   const [credOllamaModel, setCredOllamaModel] = React.useState(agent.credentials?.ollamaModel || "");
 
+  // Provisioning Wizard
+  const [showProvisionWizard, setShowProvisionWizard] = React.useState(false);
+  const [wizardStep, setWizardStep] = React.useState(1);
+  const [isTestingKey, setIsTestingKey] = React.useState(false);
+  const [wizardError, setWizardError] = React.useState("");
+
   // Reset to agent values when agent changes
   React.useEffect(() => {
     setName(agent.name);
@@ -235,6 +246,52 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
   }, [agent, open]);
 
   const isGod = agent.id === "god";
+
+  // ─── Provisioning Wizard Logic ───
+  const handleStartProvisioning = () => {
+    setShowProvisionWizard(true);
+    setWizardStep(1);
+    setWizardError("");
+  };
+
+  const handleTestKeyAndComplete = async () => {
+    if (!credGeminiKey.trim()) {
+      setWizardError("Please enter an API key first.");
+      return;
+    }
+    
+    setIsTestingKey(true);
+    setWizardError("");
+    
+    try {
+      // Create temporary settings object for validation
+      const result = await testConnection({
+        provider: "gemini",
+        geminiApiKey: credGeminiKey.trim(),
+        geminiModel: "gemini-3.1-flash-lite-preview",
+        ollamaBaseUrl: "",
+        ollamaModel: "",
+        autoHeal: false,
+        usage: { requestsToday: 0, lastResetDate: new Date().toDateString(), limitPerDay: 1500 }
+      });
+      
+      if (result.success) {
+        toast.success("Identity Provisioned Successfully!");
+        setWizardStep(3); // Success step
+        // Generate a virtual identity if none was provided
+        if (!credEmail.trim()) {
+          setCredEmail(`${agent.name.toLowerCase().replace(/[^a-z0-9]/g, ".")}.${Math.random().toString(36).slice(2, 6)}@asclepius.local`);
+        }
+        setTimeout(() => setShowProvisionWizard(false), 2000);
+      } else {
+        setWizardError(result.message || "Invalid API Key");
+      }
+    } catch (err) {
+      setWizardError(err instanceof Error ? err.message : "Connection failed");
+    } finally {
+      setIsTestingKey(false);
+    }
+  };
 
   // ─── Add a new skill ───
   const handleAddSkill = () => {
@@ -1144,9 +1201,118 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                   <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/50">
                     Agent Identity & Credentials
                   </h3>
-                  <p className="text-[10px] text-muted-foreground/40">
-                    Give this agent its own Google account and API key for independent quota and isolation.
+                  <p className="text-[10px] text-muted-foreground/40 flex items-center justify-between">
+                    <span>Give this agent its own Google account and API key for independent quota and isolation.</span>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-7 text-[10px] bg-primary/10 border-primary/20 text-primary hover:bg-primary/20 hover:text-primary transition-colors"
+                      onClick={handleStartProvisioning}
+                    >
+                      <Sparkles className="w-3 h-3 mr-1.5" />
+                      Provision Wizard
+                    </Button>
                   </p>
+
+                  {/* ─── PROVISIONING WIZARD ─── */}
+                  {showProvisionWizard && (
+                    <div className="bg-secondary/40 border border-primary/20 rounded-md p-4 space-y-4 relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary/50 to-violet-500/50" />
+                      
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-semibold uppercase tracking-widest text-primary flex items-center gap-1.5">
+                          <Crown className="w-3.5 h-3.5" /> Automated Provisioning
+                        </h4>
+                        <div className="flex gap-1">
+                          <div className={cn("w-2 h-2 rounded-full", wizardStep >= 1 ? "bg-primary" : "bg-muted-foreground/30")} />
+                          <div className={cn("w-2 h-2 rounded-full", wizardStep >= 2 ? "bg-primary" : "bg-muted-foreground/30")} />
+                          <div className={cn("w-2 h-2 rounded-full", wizardStep >= 3 ? "bg-primary" : "bg-muted-foreground/30")} />
+                        </div>
+                      </div>
+
+                      {wizardStep === 1 && (
+                        <div className="space-y-3 animate-in fade-in slide-in-from-right-4 duration-300">
+                          <p className="text-[11px] text-muted-foreground/80 leading-relaxed">
+                            To create an independent identity for this worker, you need a free Google AI Studio API key.
+                            <br/><br/>
+                            1. Open an incognito window or use a different browser profile.
+                            <br/>
+                            2. Sign in or create a new Google Account.
+                            <br/>
+                            3. Go to Google AI Studio and generate a new API key.
+                          </p>
+                          <div className="flex items-center gap-3 pt-2">
+                            <Button 
+                              size="sm" 
+                              variant="secondary"
+                              className="h-8 text-[11px] font-medium"
+                              onClick={() => window.open("https://aistudio.google.com/app/apikey", "_blank")}
+                            >
+                              Open AI Studio <ExternalLink className="w-3 h-3 ml-1.5 opacity-50" />
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              className="h-8 text-[11px] font-medium"
+                              onClick={() => setWizardStep(2)}
+                            >
+                              I have my key <ArrowRight className="w-3 h-3 ml-1.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {wizardStep === 2 && (
+                        <div className="space-y-3 animate-in fade-in slide-in-from-right-4 duration-300">
+                          <div className="space-y-2">
+                            <Label className="text-[10px] uppercase font-semibold text-muted-foreground/60">Paste API Key</Label>
+                            <Input
+                              type="password"
+                              value={credGeminiKey}
+                              onChange={(e) => setCredGeminiKey(e.target.value)}
+                              placeholder="AIza..."
+                              className="bg-background/50 border-border/50 text-xs font-mono h-8"
+                            />
+                            {wizardError && (
+                              <p className="text-[10px] text-rose-400 flex items-center gap-1 mt-1">
+                                <AlertTriangle className="w-3 h-3" /> {wizardError}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 pt-2">
+                            <Button 
+                              size="sm" 
+                              variant="ghost"
+                              className="h-8 text-[11px]"
+                              onClick={() => setWizardStep(1)}
+                            >
+                              <ChevronLeft className="w-3 h-3 mr-1" /> Back
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              className="h-8 text-[11px] font-medium"
+                              onClick={handleTestKeyAndComplete}
+                              disabled={isTestingKey}
+                            >
+                              {isTestingKey ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <ShieldCheck className="w-3 h-3 mr-1.5" />}
+                              Validate Identity
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {wizardStep === 3 && (
+                        <div className="py-2 text-center space-y-2 animate-in zoom-in-95 duration-300">
+                          <div className="mx-auto w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 mb-3">
+                            <CheckCircle2 className="w-5 h-5" />
+                          </div>
+                          <p className="text-[11px] font-medium text-emerald-400">Identity Provisioned</p>
+                          <p className="text-[10px] text-muted-foreground/60">
+                            Virtual identity assigned to {credEmail || "agent"}.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="space-y-4">
                     {/* Email */}
