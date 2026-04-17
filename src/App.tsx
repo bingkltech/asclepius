@@ -593,6 +593,46 @@ export default function App() {
     };
   }, []);
 
+  // ─── Health Regeneration & Daily Quota Reset ───
+  useEffect(() => {
+    const regenInterval = setInterval(() => {
+      setAgents((prev) =>
+        prev.map((agent) => {
+          let updated = agent;
+
+          // Passive Health Regen: +5hp every 30s for alive, non-paused agents below 100
+          if (
+            agent.heartbeat.status === "alive" &&
+            agent.status !== "paused" &&
+            agent.health < 100
+          ) {
+            updated = { ...updated, health: Math.min(100, agent.health + 5) };
+          }
+
+          // Daily Quota Reset: check if the day has rolled over
+          if (agent.credentials?.lastQuotaReset) {
+            const lastReset = new Date(agent.credentials.lastQuotaReset).toDateString();
+            const today = new Date().toDateString();
+            if (lastReset !== today) {
+              updated = {
+                ...updated,
+                credentials: {
+                  ...updated.credentials,
+                  quotaUsed: 0,
+                  lastQuotaReset: new Date().toISOString(),
+                },
+              };
+            }
+          }
+
+          return updated;
+        })
+      );
+    }, 30000); // Every 30 seconds
+
+    return () => clearInterval(regenInterval);
+  }, []);
+
   // ─── Drag & Drop ───
   const handleDragStart = useCallback(
     (e: React.DragEvent, agentId: string) => {
@@ -743,11 +783,28 @@ export default function App() {
             if (task.type === "once") {
               const category = task.description.toLowerCase().includes("bug") || task.description.toLowerCase().includes("fix") ? "engineering" : "operations";
               const { updatedAgent, levelUps } = awardAgentXP(agent, category, 100);
-              handleUpdateAgent(updatedAgent);
+              
+              // ─── Update Reputation ───
+              const newTotal = (updatedAgent.reputation.totalTasks || 0) + 1;
+              const newFailed = updatedAgent.reputation.failedTasks || 0;
+              const newRate = Math.round(((newTotal - newFailed) / newTotal) * 100);
+              const prevRate = updatedAgent.reputation.successRate;
+              const trend = newRate > prevRate ? "improving" : newRate < prevRate ? "declining" : "stable";
+              
+              const reputationAgent: Agent = {
+                ...updatedAgent,
+                reputation: {
+                  ...updatedAgent.reputation,
+                  totalTasks: newTotal,
+                  successRate: newRate,
+                  trend: trend as Agent["reputation"]["trend"],
+                },
+              };
+              handleUpdateAgent(reputationAgent);
               
               levelUps.forEach(msg => {
-                postSystemMessage("SYSTEM", `🎉 **LEVEL UP:** ${updatedAgent.name} - ${msg}`);
-                toast.success(`Level Up! ${updatedAgent.name}: ${msg}`);
+                postSystemMessage("SYSTEM", `🎉 **LEVEL UP:** ${reputationAgent.name} - ${msg}`);
+                toast.success(`Level Up! ${reputationAgent.name}: ${msg}`);
               });
             }
 

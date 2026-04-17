@@ -183,15 +183,28 @@ export function Sandbox({ settings, projects = [], agents = [], sandboxRuns = []
         onUpdateRuns([completedRun, ...sandboxRuns].slice(0, 50));
       }
 
-      // ─── Grant XP to the analyzing agent ───
+      // ─── Grant XP & Update Reputation for the analyzing agent ───
       if (healerAgent && onUpdateAgent) {
         const xpGained = hasCritical ? 150 : hasWarning ? 100 : 50;
         const { updatedAgent, levelUps } = awardAgentXP(healerAgent, "analysis", xpGained);
-        onUpdateAgent(updatedAgent);
+        
+        // Reputation: analysis itself is always a "successful task"
+        const newTotal = (updatedAgent.reputation.totalTasks || 0) + 1;
+        const newRate = Math.round(((newTotal - (updatedAgent.reputation.failedTasks || 0)) / newTotal) * 100);
+        const reputationAgent = {
+          ...updatedAgent,
+          reputation: {
+            ...updatedAgent.reputation,
+            totalTasks: newTotal,
+            successRate: newRate,
+            trend: (newRate >= updatedAgent.reputation.successRate ? "improving" : "stable") as "improving" | "stable" | "declining",
+          },
+        };
+        onUpdateAgent(reputationAgent);
         
         levelUps.forEach(msg => {
-          toast.success(`Level Up! ${updatedAgent.name}: ${msg}`);
-          if (onPostSystemMessage) onPostSystemMessage("SYSTEM", `🎉 **LEVEL UP:** ${updatedAgent.name} - ${msg}`);
+          toast.success(`Level Up! ${reputationAgent.name}: ${msg}`);
+          if (onPostSystemMessage) onPostSystemMessage("SYSTEM", `🎉 **LEVEL UP:** ${reputationAgent.name} - ${msg}`);
         });
       }
 
