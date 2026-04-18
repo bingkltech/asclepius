@@ -8,9 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, User, TerminalSquare, Bot, Settings2, Cpu, Globe, RefreshCw, ShieldCheck, ShieldAlert, Zap, ZapOff, Loader2 } from "lucide-react";
+import { Send, User, TerminalSquare, Bot, Settings2, Cpu, Globe, RefreshCw, ShieldCheck, ShieldAlert, Zap, ZapOff, Loader2, GitBranch, GitMerge, GitPullRequest, Github } from "lucide-react";
 import { getUnifiedChatResponse, getUnifiedCodeAnalysis, testConnection, getGeminiRefreshInfo, resolveAgentSettings, trackAgentQuota } from "@/src/services/llm";
 import { listOllamaModels, OllamaModel } from "@/src/services/ollama";
+import { julesSubmitTask, julesPollTask, julesCancelTask, getJulesTasks, JulesTask } from "@/src/services/jules";
+import { addKnowledge, saveSkillScript, searchKnowledge, getVaultStats, recordEpisode } from "@/src/services/neuralVault";
+import { listBranches, getStatus, mergeBranch, checkoutBranch, getConflicts } from "@/src/services/gitOps";
+import { openInDesktop } from "@/src/services/githubDesktop";
 import { ChatMessage, LogEntry, LLMSettings, Agent, AgentSkill, LLMProvider, SKILL_XP_TABLE, SKILL_LEVEL_NAMES, Project, GoalStatus, SandboxRun, createSkill } from "@/src/types";
 import { motion } from "motion/react";
 import ReactMarkdown from "react-markdown";
@@ -41,11 +45,12 @@ interface CommandCenterProps {
   sandboxRuns?: SandboxRun[];
   onUpdateSandboxRuns?: (runs: SandboxRun[]) => void;
   activeProjectId?: string;
+  activeTokenAgentId?: string | null;
 }
 
 // createSkill imported from @/src/types (canonical source)
 
-export function CommandCenter({ logs, settings, agents, onUpdateSettings, messages, setMessages, onSpawnAgent, onTerminateAgent, onPauseAgent, onResumeAgent, onAddTask, onUpdateAgent, projects = [], onUpdateProjects, sandboxRuns = [], onUpdateSandboxRuns, activeProjectId = "none" }: CommandCenterProps) {
+export function CommandCenter({ logs, settings, agents, onUpdateSettings, messages, setMessages, onSpawnAgent, onTerminateAgent, onPauseAgent, onResumeAgent, onAddTask, onUpdateAgent, projects = [], onUpdateProjects, sandboxRuns = [], onUpdateSandboxRuns, activeProjectId = "none", activeTokenAgentId = null }: CommandCenterProps) {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [defaultOllamaModel, setDefaultOllamaModel] = useState<string>("");
@@ -53,6 +58,29 @@ export function CommandCenter({ logs, settings, agents, onUpdateSettings, messag
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<{ success: boolean; message: string } | null>(null);
+  const [julesTasks, setJulesTasks] = useState<JulesTask[]>(() => getJulesTasks());
+  const [gitStatus, setGitStatus] = useState<any>(null);
+  const [gitBranches, setGitBranches] = useState<string[]>([]);
+  const [isMerging, setIsMerging] = useState(false);
+  const activeProject = projects.find(p => p.id === activeProjectId);
+
+  useEffect(() => {
+    if (!activeProject || activeProject.id === "none") return;
+    const fetchGit = async () => {
+      try {
+        const status = await getStatus(activeProject.path);
+        const branchesData = await listBranches(activeProject.path);
+        setGitStatus(status);
+        setGitBranches(branchesData.branches.map(b => b.name));
+      } catch (e) {
+        console.warn("Git status fetch failed", e);
+      }
+    };
+    fetchGit();
+    const interval = setInterval(fetchGit, 10000);
+    return () => clearInterval(interval);
+  }, [activeProject]);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastProcessedLogId = useRef<string | null>(null);
 
@@ -78,6 +106,88 @@ export function CommandCenter({ logs, settings, agents, onUpdateSettings, messag
     setConnectionStatus(result);
     setIsTestingConnection(false);
     trackUsage();
+  };
+
+  const handleMergeBranch = async (branch: string) => {
+    if (!activeProject) return;
+    const coo = agents.find(a => a.id === "coo");
+    if (!coo) {
+      toast.error("COO Agent not found.");
+      return;
+    }
+    
+    setIsMerging(true);
+    postSystemMessage("COO-AGENT", `[GIT_MERGE] Initiating merge of branch \`${branch}\` into main...`);
+    try {
+      const result = await mergeBranch(branch, activeProject.path, coo);
+      if (result.success) {
+        toast.success(`Successfully merged ${branch}`);
+        postSystemMessage("COO-AGENT", `[GIT_SUCCESS] Merged branch \`${branch}\` successfully. Code is now in production main.`);
+      } else {
+        // DETECT MERGE CONFLICT
+        const conflicts = await getConflicts(activeProject.path);
+        if (conflicts.hasConflicts) {
+          toast.error(`Merge conflict! Dispatched to Healer-01.`);
+          // Abort the broken merge locally so working tree isn't stuck
+          await fetch('/api/git/exec', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: 'merge --abort', projectPath: activeProject.path })
+          });
+          postSystemMessage("SYSTEM", `[GIT_CONFLICT] Merge conflict detected in files: ${conflicts.conflictFiles.join(', ')}.\n@Healer-01 please investigate and resolve these conflicts using Jules.`);
+        } else {
+          toast.error("Merge failed");
+          postSystemMessage("COO-AGENT", `[GIT_ERROR] Merge failed. Output: ${result.output || result.error}`);
+        }
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Merge error");
+      postSystemMessage("COO-AGENT", `[GIT_ERROR] Critical failure during merge: ${e.message}`);
+    } finally {
+      setIsMerging(false);
+      getStatus(activeProject.path).then(setGitStatus).catch(console.warn);
+      listBranches(activeProject.path).then(res => setGitBranches(res.branches.map(b => b.name))).catch(console.warn);
+    }
+  };
+
+  const handleReviewBranch = async (branch: string) => {
+    if (!activeProject) return;
+    const coo = agents.find(a => a.id === "coo");
+    if (!coo) {
+      toast.error("COO Agent not found.");
+      return;
+    }
+    
+    setIsMerging(true); // Reuse merging state for loading lock
+    toast.info("Fetching diff for review...");
+    try {
+      const res = await fetch('/api/git/exec', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          command: `diff main...${branch}`, 
+          projectPath: activeProject.path,
+          agentId: coo.id,
+          agentName: coo.name
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        let diffText = data.output;
+        if (!diffText || diffText.trim() === '') diffText = "No differences found.";
+        if (diffText.length > 2000) diffText = diffText.substring(0, 2000) + "\n...[TRUNCATED TO FIT CONTEXT]";
+        
+        const reviewPrompt = `@COO-Agent Review PR \`${branch}\` against main.\nDiff:\n\`\`\`diff\n${diffText}\n\`\`\`\nAnalyze for bugs. Reply [APPROVE] or [REJECT].`;
+        setInput(reviewPrompt);
+        toast.info("PR Prompt loaded! Press Execute to send.");
+      } else {
+        toast.error("Failed to fetch diff");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Diff fetch error");
+    } finally {
+      setIsMerging(false);
+    }
   };
 
   const trackUsage = () => {
@@ -195,6 +305,33 @@ export function CommandCenter({ logs, settings, agents, onUpdateSettings, messag
 
       setMessages(prev => [...prev, modelMsg]);
 
+      // T16: Auto-learn — Record the heal event and extract wisdom
+      try {
+        await recordEpisode(
+          'god',
+          `Auto-healed error: "${log.message}"`,
+          `Error from ${log.agentId}: ${log.message}`,
+          'success',
+          responseText.slice(0, 300)
+        );
+        // Auto-extract wisdom: Ask the vault to store the fix as knowledge
+        await addKnowledge(
+          `Auto-Heal: ${log.message.slice(0, 60)}`,
+          `**Error:** ${log.message}\n**Source:** ${log.agentId}\n**Resolution:**\n${responseText.slice(0, 500)}`,
+          [...new Set([
+            log.agentId.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+            'auto-heal',
+            'error-resolution',
+            ...(log.message.match(/\b\w{4,}\b/g) || []).slice(0, 5).map(w => w.toLowerCase())
+          ])],
+          'bugfix',
+          'god'
+        );
+        console.log('[NeuralVault] Auto-learned from heal event');
+      } catch (vaultErr) {
+        console.warn('[NeuralVault] Auto-learn after heal failed:', vaultErr);
+      }
+
     } catch (error) {
       console.error("Auto-Heal Error:", error);
     } finally {
@@ -207,7 +344,7 @@ export function CommandCenter({ logs, settings, agents, onUpdateSettings, messag
             id: `sleep-${Date.now()}`,
             role: "system",
             sender: "GOD-AGENT",
-            content: `[HEAL COMPLETE] System nominal. Transitioning back to TACTICAL HIBERNATION (Sleep).`,
+            content: `[HEAL COMPLETE] System nominal. Wisdom stored in Neural Vault. Transitioning back to TACTICAL HIBERNATION (Sleep).`,
             timestamp: new Date().toLocaleTimeString()
           };
           setMessages(prev => [...prev, sleepAlert]);
@@ -564,6 +701,12 @@ export function CommandCenter({ logs, settings, agents, onUpdateSettings, messag
     if (actualMessage.startsWith("/analyze") || actualMessage.startsWith("/fix")) {
       targetAgentName = "Healer-01";
     }
+    
+    // Quick macro to test the Golden Path workflow
+    if (actualMessage === "/test-golden-path") {
+      targetAgentName = "Healer-01";
+      actualMessage = `We need to test the Golden Path GitOps workflow. Please use your JSON action tools to execute the following sequentially: 1) Run \`checkout -b healer/test-cycle\`. 2) Create a file named \`golden_path_test.md\` containing the text "# Golden Path Verified". 3) Run \`add -A\`. 4) Run \`commit -m "Verified GitOps pipeline and self-healing bridge"\`. Please format your actions within the standard \`\`\`json:action block.`;
+    }
 
     const targetAgent = agents.find(a => a.name === targetAgentName) || agents[0];
 
@@ -674,9 +817,22 @@ ${(() => {
 })()}
 
 Your Role & Instructions:
-- You are a world-class engineer and product designer.
-- If you are God-Agent: You are the Lead System Architect with absolute authority, proactive self-healing, recursive self-improvement, and fleet management powers. You can read the SANDBOX HEALTH section to see if any project code has critical failures and take corrective action. You also have the capabilities to construct new specialized worker agents via SPAWN_AGENT, launch target projects to feed the pipeline, and explore new architectural vectors.
-- If you are COO-Agent: You are the Chief Operating Officer, focused on orchestration, resource management, and delegated tasks. When you see project milestones in 'ACTIVE PROJECTS', you SHOULD proactively create SCHEDULE_TASK actions for each pending milestone, assigning the best-fit agent from the fleet. If Sandbox tests are failing, schedule investigation tasks for the Healer-01 agent.
+- You operate within a Zero-Human Corporate Hierarchy with strict boundaries between "Project Code" (Client Work) and "Self Code" (Asclepius Core).
+- If you are God-Agent: You are the CEO/System Architect. Your domain is the "Self Code". You dictate recursive self-improvement, company structure, and spawn agents. You delegate structural upgrades to AntiGravity, isolated Jules tasks, or specialized agents you spawn.
+- If you are COO-Agent or Worker (Healer, Dev): Your default domain is strictly "Project Code". You are PROHIBITED from modifying Asclepius Core UNLESS explicitly authorized and commanded by the God-Agent to do so via Jules. You manage, build, and repair external client apps. When handling projects, the COO schedules tasks and dispatches them to the fleet or Jules.
+- COO-AGENT JULES TOOL: You have direct access to Jules (jules.google.com) as a real execution tool. To submit a task to Jules for autonomous code execution:
+\`\`\`json:action
+{ "type": "CALL_JULES", "payload": { "description": "Fix the login bug in src/auth.ts", "repoUrl": "https://github.com/user/repo", "files": [] } }
+\`\`\`
+To poll the status of a Jules task:
+\`\`\`json:action
+{ "type": "POLL_JULES", "payload": { "taskId": "jules-xxx" } }
+\`\`\`
+To cancel a Jules task:
+\`\`\`json:action
+{ "type": "CANCEL_JULES", "payload": { "taskId": "jules-xxx" } }
+\`\`\`
+Use CALL_JULES when: a project milestone requires code changes, Sandbox shows critical errors, or when God-Agent delegates a coding task to Jules. Always report the Jules task ID back to the operator.
 - When you speak, you are addressing the entire room. Read the Chat Transcript to understand what the COO or God-Agent may have just done or tasked you with.
 - You are PROJECT-AWARE. You can see all active projects, their milestones, progress, and assigned agents above. Reference them when relevant.
 - Be proactive, technical, and precise. You MUST detect and fix errors mentioned in the logs.
@@ -712,11 +868,39 @@ If you need to construct, write, or modify actual codebase files on disk (Jules-
 \`\`\`
 The system will silently intercept and execute these json:actions. You are fully autonomous.
 
+═══ NEURAL VAULT (COGNITIVE MEMORY) ═══
+You have access to a persistent knowledge database called the Neural Vault.
+To LEARN something important (store wisdom for future recall):
+\`\`\`json:action
+{ "type": "LEARN_WISDOM", "payload": { "topic": "How to fix CORS in Vite", "content": "Use server.proxy in vite.config.ts...", "tags": ["cors", "vite", "proxy"], "category": "bugfix" } }
+\`\`\`
+Valid categories: architecture, bugfix, pattern, protocol, insight.
+To SAVE a reusable solution template (Skill Script):
+\`\`\`json:action
+{ "type": "SAVE_SKILL", "payload": { "name": "fix-cors-proxy", "description": "Resolves CORS via Vite proxy", "triggerPattern": "CORS blocked cross-origin", "script": "Add proxy entry to vite.config.ts..." } }
+\`\`\`
+To RECALL knowledge about a topic:
+\`\`\`json:action
+{ "type": "RECALL_WISDOM", "payload": { "query": "CORS proxy" } }
+\`\`\`
+IMPORTANT: After solving any significant bug, architectural decision, or discovering a pattern, you SHOULD output a LEARN_WISDOM action to persist that knowledge. This makes you smarter over time.
+
 CRITICAL SLEEP PROTOCOL: If you are the God-Agent and you were woken up for a query or a special task, you MUST automatically return to Tactical Hibernation the moment your task is done. To auto-sleep, output exactly:
 \`\`\`json:action
 { "type": "PAUSE_AGENT", "payload": { "agentId": "god" } }
 \`\`\`
+
+═══ JULES TASK QUEUE (COO-Agent Tool) ═══
+${(() => {
+  const julesTaskList = getJulesTasks().slice(0, 10);
+  if (julesTaskList.length === 0) return 'No Jules tasks submitted yet. Use CALL_JULES to dispatch work to jules.google.com.';
+  return julesTaskList.map(t => {
+    const icon = t.status === 'success' ? '✅' : t.status === 'failed' ? '❌' : t.status === 'running' ? '⚡' : t.status === 'cancelled' ? '🚫' : '⏳';
+    return `  ${icon} [${t.status.toUpperCase()}] ID: \`${t.id}\` — "${t.description}" (by ${t.agentId}, ${new Date(t.createdAt).toLocaleTimeString()})`;
+  }).join('\n');
+})()}
 `;
+
 
     // Filter history to ONLY this agent and User to keep Gemini's strict alternating format happy, 
     // but the full transcript above ensures they are "hive-mind" aware.
@@ -859,6 +1043,145 @@ CRITICAL SLEEP PROTOCOL: If you are the God-Agent and you were woken up for a qu
                 postSystemMessage("JULES-BRIDGE", `[FS_ERROR] Failed to write \`${filePath}\`: ${fsErr.message}`);
               }
             }
+            // ─── CALL_JULES — COO submits a task to jules.google.com ───
+            else if (action.type === "CALL_JULES") {
+              const { description, repoUrl, files } = action.payload;
+              postSystemMessage("COO-AGENT", `[JULES_DISPATCH] Submitting task to Jules: "${description}"...`);
+              try {
+                const result = await julesSubmitTask(
+                  { description, agentId: targetAgent.id, repoUrl, files },
+                  settings.geminiApiKey
+                );
+                setJulesTasks(getJulesTasks());
+                if (result.success) {
+                  toast.success(`Jules task submitted: ${result.taskId}`);
+                  postSystemMessage("JULES-BRIDGE",
+                    `[JULES_ACCEPTED] Task ID: \`${result.taskId}\` | Session: \`${result.sessionId}\`\n\n${result.message}\n\nUse POLL_JULES to check progress.`
+                  );
+                } else {
+                  toast.error(`Jules submission failed`);
+                  postSystemMessage("JULES-BRIDGE", `[JULES_REJECTED] ${result.message}`);
+                }
+              } catch (jErr: any) {
+                toast.error(`Jules call failed: ${jErr.message}`);
+                postSystemMessage("JULES-BRIDGE", `[JULES_ERROR] ${jErr.message}`);
+              }
+            }
+            // ─── POLL_JULES — COO checks a Jules task status ───
+            else if (action.type === "POLL_JULES") {
+              const { taskId } = action.payload;
+              try {
+                const result = await julesPollTask(taskId, settings.geminiApiKey);
+                setJulesTasks(getJulesTasks());
+                if (result.success && result.task) {
+                  const t = result.task;
+                  const statusEmoji = t.status === "success" ? "✅" : t.status === "failed" ? "❌" : t.status === "running" ? "⚡" : t.status === "cancelled" ? "🚫" : "⏳";
+                  postSystemMessage("JULES-BRIDGE",
+                    `[JULES_STATUS] Task \`${taskId}\`: ${statusEmoji} ${t.status.toUpperCase()}\n\n${t.result || t.error || "No result yet."}`
+                  );
+                } else {
+                  postSystemMessage("JULES-BRIDGE", `[JULES_POLL_ERROR] ${result.message}`);
+                }
+              } catch (jErr: any) {
+                postSystemMessage("JULES-BRIDGE", `[JULES_ERROR] ${jErr.message}`);
+              }
+            }
+            // ─── CANCEL_JULES — COO cancels a Jules task ───
+            else if (action.type === "CANCEL_JULES") {
+              const { taskId } = action.payload;
+              try {
+                const result = await julesCancelTask(taskId, settings.geminiApiKey);
+                setJulesTasks(getJulesTasks());
+                toast.info(`Jules task ${taskId} cancelled`);
+                postSystemMessage("JULES-BRIDGE", `[JULES_CANCELLED] ${result.message}`);
+              } catch (jErr: any) {
+                postSystemMessage("JULES-BRIDGE", `[JULES_ERROR] ${jErr.message}`);
+              }
+            }
+            // ─── GIT_EXEC — Agents execute GitOps commands ───
+            else if (action.type === "GIT_EXEC") {
+              const { command } = action.payload; // e.g. "checkout -b healer/fix-bug"
+              if (!activeProject || activeProject.id === "none") {
+                postSystemMessage("SYSTEM", `[GIT_REJECTED] Cannot execute git. No active project selected.`);
+              } else {
+                try {
+                  const res = await fetch('/api/git/exec', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                      command, 
+                      projectPath: activeProject.path, 
+                      agentId: targetAgent.id,
+                      agentName: targetAgent.name,
+                      agentEmail: targetAgent.credentials?.email || `${targetAgent.id}@asclepius.local`
+                    })
+                  });
+                  const data = await res.json();
+                  if (res.ok && data.success) {
+                    postSystemMessage(targetAgent.id.toUpperCase(), `[GIT_SUCCESS] \`git ${command}\`\nOutput: ${data.output || "Success"}`);
+                    getStatus(activeProject.path).then(setGitStatus).catch(console.warn);
+                    listBranches(activeProject.path).then(res => setGitBranches(res.branches.map(b => b.name))).catch(console.warn);
+                  } else {
+                    postSystemMessage(targetAgent.id.toUpperCase(), `[GIT_ERROR] \`git ${command}\` failed:\n${data.error}`);
+                  }
+                } catch (e: any) {
+                  postSystemMessage("SYSTEM", `[GIT_CRITICAL] ${e.message}`);
+                }
+              }
+            }
+            // ─── LEARN_WISDOM — Store knowledge in the Neural Vault ───
+            else if (action.type === "LEARN_WISDOM") {
+              const { topic, content, tags, category } = action.payload;
+              try {
+                const node = await addKnowledge(
+                  topic || "Untitled Wisdom",
+                  content || "No content provided",
+                  tags || [],
+                  category || "insight",
+                  targetAgent.id
+                );
+                toast.success(`Neural Vault: Learned "${node.topic}"`);
+                postSystemMessage("NEURAL-VAULT", `[LEARNED] 🧠 New wisdom stored: "${node.topic}" (${node.category}) — Confidence: ${Math.round(node.confidence * 100)}%\nTags: ${node.tags.join(', ')}`);
+              } catch (vaultErr: any) {
+                console.error("Neural Vault write failed:", vaultErr);
+                postSystemMessage("NEURAL-VAULT", `[ERROR] Failed to store wisdom: ${vaultErr.message}`);
+              }
+            }
+            // ─── SAVE_SKILL — Store a reusable solution template ───
+            else if (action.type === "SAVE_SKILL") {
+              const { name, description, triggerPattern, script } = action.payload;
+              try {
+                const ss = await saveSkillScript(
+                  name || "unnamed-script",
+                  description || "No description",
+                  triggerPattern || "",
+                  script || "",
+                  targetAgent.id
+                );
+                toast.success(`Skill Script saved: "${ss.name}"`);
+                postSystemMessage("NEURAL-VAULT", `[SKILL_SAVED] 🔧 New skill script: "${ss.name}" — Trigger: "${ss.triggerPattern}"`);
+              } catch (vaultErr: any) {
+                console.error("Neural Vault skill save failed:", vaultErr);
+                postSystemMessage("NEURAL-VAULT", `[ERROR] Failed to save skill: ${vaultErr.message}`);
+              }
+            }
+            // ─── RECALL_WISDOM — Search the Neural Vault ───
+            else if (action.type === "RECALL_WISDOM") {
+              const { query } = action.payload;
+              try {
+                const results = await searchKnowledge(query || "", 5);
+                if (results.length > 0) {
+                  const summaryLines = results.map(n =>
+                    `  [${n.category.toUpperCase()}] "${n.topic}" (Confidence: ${Math.round(n.confidence * 100)}%)\n    ${n.content.slice(0, 150)}...`
+                  ).join('\n');
+                  postSystemMessage("NEURAL-VAULT", `[RECALL] 📚 Found ${results.length} wisdom nodes for "${query}":\n${summaryLines}`);
+                } else {
+                  postSystemMessage("NEURAL-VAULT", `[RECALL] No wisdom found for "${query}". Consider learning about this topic.`);
+                }
+              } catch (vaultErr: any) {
+                postSystemMessage("NEURAL-VAULT", `[ERROR] Recall failed: ${vaultErr.message}`);
+              }
+            }
           } catch (e) {
             console.error("Failed to parse AI action block:", e);
           }
@@ -922,7 +1245,106 @@ CRITICAL SLEEP PROTOCOL: If you are the God-Agent and you were woken up for a qu
           </div>
         </div>
 
-        {onUpdateSettings && (
+        <div className="flex items-center gap-2">
+          {activeProject && activeProject.id !== "none" && (
+            <Button variant="ghost" size="sm" onClick={() => openInDesktop(activeProject.path)} className="h-8 px-3 text-[10px] uppercase tracking-widest hover:bg-zinc-900 hover:text-primary transition-all">
+              <Github className="w-3 h-3 mr-2" />
+              Open_in_Desktop
+            </Button>
+          )}
+          {activeProject && activeProject.id !== "none" && (
+            <Dialog>
+              <DialogTrigger render={
+                <Button variant="ghost" size="sm" className="h-8 px-3 text-[10px] uppercase tracking-widest hover:bg-zinc-900 hover:text-primary transition-all relative">
+                  {gitBranches.some(b => b !== "main" && b !== "master" && !b.startsWith("*")) && (
+                    <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
+                  )}
+                  <GitPullRequest className="w-3 h-3 mr-2" />
+                  Git_Ops
+                </Button>
+              } />
+              <DialogContent className="sm:max-w-[500px] bg-zinc-950 border-zinc-900 text-zinc-400 font-mono">
+                <DialogHeader>
+                  <DialogTitle className="text-zinc-100 uppercase tracking-widest text-sm flex items-center gap-2">
+                    <GitBranch className="w-4 h-4 text-primary" />
+                    Git_Operations
+                  </DialogTitle>
+                  <DialogDescription className="text-zinc-500 text-xs">
+                    Manage active agent branches and merge them to production.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="p-3 bg-zinc-900/50 rounded border border-zinc-900">
+                    <div className="text-[10px] text-zinc-500 uppercase tracking-widest mb-2">Current Status</div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <GitBranch className="w-3 h-3 text-emerald-400" />
+                        <span className="text-xs text-emerald-400 font-bold">{gitStatus?.currentBranch || "unknown"}</span>
+                      </div>
+                      <div className="text-[10px] text-zinc-600 uppercase">
+                        {gitStatus?.isDirty ? "Dirty Working Tree" : "Clean Working Tree"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-[10px] text-zinc-500 uppercase tracking-widest">Active Branches</div>
+                    {gitBranches.length === 0 ? (
+                      <div className="text-xs text-zinc-600 italic">No branches found</div>
+                    ) : (
+                      <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2">
+                        {gitBranches.filter(b => {
+                          const cleanName = b.replace("*", "").trim();
+                          return cleanName !== "main" && cleanName !== "master";
+                        }).map(branch => {
+                          const cleanName = branch.replace("*", "").trim();
+                          return (
+                            <div key={cleanName} className="flex items-center justify-between p-2 rounded bg-zinc-900/30 border border-zinc-900/50 hover:border-primary/30 transition-all">
+                              <div className="flex items-center gap-2">
+                                <GitBranch className="w-3 h-3 text-zinc-500" />
+                                <span className="text-xs text-zinc-300">{cleanName}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  disabled={isMerging}
+                                  onClick={() => handleReviewBranch(cleanName)}
+                                  className="h-6 text-[9px] uppercase hover:text-emerald-400"
+                                >
+                                  Review
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  disabled={isMerging}
+                                  onClick={() => handleMergeBranch(cleanName)}
+                                  className="h-6 text-[9px] uppercase border-zinc-700 hover:border-primary hover:text-primary"
+                                >
+                                  {isMerging ? <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> : <GitMerge className="w-3 h-3 mr-1.5" />}
+                                  Merge
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {gitBranches.filter(b => {
+                          const cleanName = b.replace("*", "").trim();
+                          return cleanName !== "main" && cleanName !== "master";
+                        }).length === 0 && (
+                          <div className="text-[10px] text-zinc-600 italic p-2 border border-dashed border-zinc-800 rounded bg-zinc-900/20 text-center">
+                            All branches merged. Factory is idle.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
+
+          {onUpdateSettings && (
           <Dialog>
             <DialogTrigger render={
               <Button variant="ghost" size="sm" className="h-8 px-3 text-[10px] uppercase tracking-widest hover:bg-zinc-900 hover:text-primary transition-all">
@@ -997,8 +1419,18 @@ CRITICAL SLEEP PROTOCOL: If you are the God-Agent and you were woken up for a qu
                   <RadioGroup
                     value={settings.provider}
                     onValueChange={(val) => onUpdateSettings({ ...settings, provider: val as LLMProvider })}
-                    className="grid grid-cols-2 gap-4"
+                    className="grid grid-cols-3 gap-4"
                   >
+                    <div>
+                      <RadioGroupItem value="auto" id="cc-auto" className="sr-only" />
+                      <Label
+                        htmlFor="cc-auto"
+                        className={`flex flex-col items-center justify-between rounded border border-zinc-900 bg-zinc-950 p-4 hover:border-primary/50 cursor-pointer transition-all ${settings.provider === 'auto' ? 'border-primary bg-primary/5 text-primary' : ''}`}
+                      >
+                        <Zap className="mb-2 h-4 w-4" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-center">Smart Router</span>
+                      </Label>
+                    </div>
                     <div>
                       <RadioGroupItem value="gemini" id="cc-gemini" className="sr-only" />
                       <Label
@@ -1006,7 +1438,7 @@ CRITICAL SLEEP PROTOCOL: If you are the God-Agent and you were woken up for a qu
                         className={`flex flex-col items-center justify-between rounded border border-zinc-900 bg-zinc-950 p-4 hover:border-primary/50 cursor-pointer transition-all ${settings.provider === 'gemini' ? 'border-primary bg-primary/5 text-primary' : ''}`}
                       >
                         <Globe className="mb-2 h-4 w-4" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest">Gemini</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-center">Gemini</span>
                       </Label>
                     </div>
                     <div>
@@ -1016,13 +1448,13 @@ CRITICAL SLEEP PROTOCOL: If you are the God-Agent and you were woken up for a qu
                         className={`flex flex-col items-center justify-between rounded border border-zinc-900 bg-zinc-950 p-4 hover:border-primary/50 cursor-pointer transition-all ${settings.provider === 'ollama' ? 'border-primary bg-primary/5 text-primary' : ''}`}
                       >
                         <Cpu className="mb-2 h-4 w-4" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest">Ollama</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-center">Ollama</span>
                       </Label>
                     </div>
                   </RadioGroup>
                 </div>
 
-                {settings.provider === 'gemini' && (
+                {(settings.provider === 'gemini' || settings.provider === 'auto') && (
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="cc-gemini-key" className="text-[10px] uppercase tracking-widest text-zinc-500">Gemini_API_Key</Label>
@@ -1047,7 +1479,7 @@ CRITICAL SLEEP PROTOCOL: If you are the God-Agent and you were woken up for a qu
                         <SelectContent className="bg-zinc-950 border-zinc-900 text-zinc-400 font-mono">
                           <SelectGroup>
                             <SelectLabel className="text-[10px] uppercase tracking-widest text-zinc-600">Available_Models</SelectLabel>
-                            <SelectItem value="gemini-3.1-pro-preview" className="text-xs uppercase hover:text-primary">Gemini 3.1 Pro (Latest)</SelectItem>
+                            <SelectItem value="gemini-3.1-pro-preview" className="text-xs uppercase hover:text-primary">Gemini 3.1 Pro (Powerful)</SelectItem>
                             <SelectItem value="gemini-3.1-flash-lite-preview" className="text-xs uppercase hover:text-primary">Gemini 3.1 Flash Lite (Fast)</SelectItem>
                           </SelectGroup>
                         </SelectContent>
@@ -1056,7 +1488,7 @@ CRITICAL SLEEP PROTOCOL: If you are the God-Agent and you were woken up for a qu
                   </div>
                 )}
 
-                {settings.provider === 'ollama' && (
+                {(settings.provider === 'ollama' || settings.provider === 'auto') && (
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="cc-ollama-url" className="text-[10px] uppercase tracking-widest text-zinc-500">Ollama_Base_URL</Label>
@@ -1075,24 +1507,36 @@ CRITICAL SLEEP PROTOCOL: If you are the God-Agent and you were woken up for a qu
                           Sync
                         </Button>
                       </div>
-                      <Select
-                        value={settings.ollamaModel}
-                        onValueChange={(val) => onUpdateSettings({ ...settings, ollamaModel: val })}
-                      >
-                        <SelectTrigger className="bg-zinc-950 border-zinc-900 text-zinc-100 text-xs focus:ring-primary/30">
-                          <SelectValue placeholder="SELECT_MODEL" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-zinc-950 border-zinc-900 text-zinc-400 font-mono">
-                          <SelectGroup>
-                            <SelectLabel className="text-[10px] uppercase tracking-widest text-zinc-600">Available_Models</SelectLabel>
-                            {ollamaModels.map((m) => (
-                              <SelectItem key={m.name} value={m.name} className="text-xs uppercase hover:text-primary">
-                                {m.name}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
+                      {ollamaModels.length > 0 ? (
+                        <Select
+                          value={settings.ollamaModel}
+                          onValueChange={(val) => onUpdateSettings({ ...settings, ollamaModel: val })}
+                        >
+                          <SelectTrigger className="bg-zinc-950 border-zinc-900 text-zinc-100 text-xs focus:ring-primary/30">
+                            <SelectValue placeholder="SELECT_MODEL" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-zinc-950 border-zinc-900 text-zinc-400 font-mono">
+                            <SelectGroup>
+                              <SelectLabel className="text-[10px] uppercase tracking-widest text-zinc-600">Available_Models</SelectLabel>
+                              {ollamaModels.map((m) => (
+                                <SelectItem key={m.name} value={m.name} className="text-xs uppercase hover:text-primary">
+                                  {m.name}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <div className="space-y-2">
+                          <Input
+                            value={settings.ollamaModel}
+                            onChange={(e) => onUpdateSettings({ ...settings, ollamaModel: e.target.value })}
+                            placeholder="e.g. gemma2 or llama3"
+                            className="bg-zinc-950 border-zinc-900 text-zinc-100 text-xs focus-visible:ring-primary/30"
+                          />
+                          <p className="text-[9px] text-yellow-500/80 uppercase">Click 'Sync' to load models, or type manually.</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1105,12 +1549,34 @@ CRITICAL SLEEP PROTOCOL: If you are the God-Agent and you were woken up for a qu
             </DialogContent>
           </Dialog>
         )}
+        </div>
       </div>
 
       {/* Main Terminal Stream */}
       <div className="flex-1 relative overflow-hidden">
         <ScrollArea className="h-full" ref={scrollRef}>
           <div className="p-6 space-y-6 max-w-5xl mx-auto">
+            {/* Turn-Based Token Indicator */}
+            {activeTokenAgentId && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex items-center gap-3 p-3 mb-4 rounded-lg bg-zinc-900/80 border border-primary/20 backdrop-blur-md"
+              >
+                <div className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+                </div>
+                <div className="flex-1">
+                  <div className="text-[10px] font-bold text-primary uppercase tracking-[0.2em]">ORCHESTRATOR_LOCKED</div>
+                  <div className="text-xs text-zinc-400">
+                    <span className="text-zinc-100 font-bold">{agents.find(a => a.id === activeTokenAgentId)?.name || 'Unknown Agent'}</span> is currently holding the communication floor...
+                  </div>
+                </div>
+                <Loader2 className="w-4 h-4 text-primary animate-spin" />
+              </motion.div>
+            )}
+
             {messages.map((msg) => (
               <motion.div
                 key={msg.id}

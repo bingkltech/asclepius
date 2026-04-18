@@ -164,8 +164,14 @@ export const testConnection = async (settings: LLMSettings): Promise<{ success: 
 };
 
 export const getUnifiedCodeAnalysis = async (settings: LLMSettings, code: string): Promise<CodeAnalysis> => {
+  let routedProvider = settings.provider;
+  if (routedProvider === 'auto') {
+    // Cognitive Load Balancer: Code analysis is highly complex, always use Gemini unless it's a tiny snippet
+    routedProvider = code.length > 500 ? 'gemini' : 'ollama';
+  }
+
   const limitInfo = getGeminiRefreshInfo();
-  const useGemini = settings.provider === 'gemini' && !limitInfo.isLimited;
+  const useGemini = routedProvider === 'gemini' && !limitInfo.isLimited;
 
   if (useGemini) {
     try {
@@ -227,8 +233,32 @@ export const getUnifiedChatResponse = async (
 ): Promise<string> => {
   let systemInstruction = `You are ${agentName}, an autonomous AI agent with the role: ${agentRole}. You have access to the system logs and agent status. Current system context: ${systemContext}`;
 
+  let routedProvider = settings.provider;
+  
+  if (routedProvider === 'auto') {
+    // Cognitive Load Balancer Rules:
+    const contentToAnalyze = (message + " " + systemContext).toLowerCase();
+    
+    // 1. Context Size Trigger: If the prompt is massive, route to Gemini.
+    if (contentToAnalyze.length > 5000) {
+      routedProvider = 'gemini';
+    } 
+    // 2. Error/Bug Trigger: If dealing with stack traces or sandbox failures, route to Gemini.
+    else if (contentToAnalyze.includes("error") || contentToAnalyze.includes("failed") || contentToAnalyze.includes("bug") || contentToAnalyze.includes("critical") || contentToAnalyze.includes("exception")) {
+      routedProvider = 'gemini';
+    } 
+    // 3. Learning/Audit Trigger: If God-Agent is doing an audit, route to Gemini.
+    else if (contentToAnalyze.includes("[system_audit_due]")) {
+      routedProvider = 'gemini';
+    }
+    // Default to cheap local Ollama for routine tasks
+    else {
+      routedProvider = 'ollama';
+    }
+  }
+
   const limitInfo = getGeminiRefreshInfo();
-  const useGemini = settings.provider === 'gemini' && !limitInfo.isLimited;
+  const useGemini = routedProvider === 'gemini' && !limitInfo.isLimited;
 
   if (useGemini) {
     try {

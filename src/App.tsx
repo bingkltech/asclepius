@@ -3,13 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { AgentCard } from "./components/AgentCard";
 import { LogViewer } from "./components/LogViewer";
 import { Sandbox } from "./components/Sandbox";
 import { CommandCenter } from "./components/CommandCenter";
 import { ProjectsPage } from "./components/ProjectsPage";
+import { Chronicle } from "./components/Chronicle";
 import { Settings as SettingsPage } from "./components/Settings";
 import {
   Agent,
@@ -25,11 +26,16 @@ import {
   createSkill,
   createHeartbeat,
   awardAgentXP,
+  CORE_GIT_SKILLS,
 } from "./types";
 import { getUnifiedChatResponse, resolveAgentSettings } from "./services/llm";
+import { initializeNeuralVault, getRelevantWisdom, recordEpisode, getVaultStats, applyConfidenceDecay } from "./services/neuralVault";
+import type { NeuralVaultStats } from "./types";
 import { TaskScheduler } from "./components/TaskScheduler";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
+import { loadSettingsFromFile, saveSettingsToFile } from "./services/settingsPersistence";
+import { detectGitHubDesktop, GitHubDesktopStatus } from "./services/githubDesktop";
 import {
   LayoutDashboard,
   Users,
@@ -53,6 +59,8 @@ import {
   ShieldCheck,
   XCircle,
   KeyRound,
+  Brain,
+  Github,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,7 +73,7 @@ import { cn } from "@/lib/utils";
 
 // createSkill and createHeartbeat imported from ./types (canonical source)
 
-// ─── INITIAL AGENTS with full heartbeat, skills, budget, reputation ───
+// ─── INITIAL AGENTS with full heartbeat, skills, budget, reputation, sovereign identity ───
 const INITIAL_AGENTS: Agent[] = [
   {
     id: "god",
@@ -98,6 +106,9 @@ const INITIAL_AGENTS: Agent[] = [
       createSkill("Quota Guardian", "operations", 4, "API quota monitoring, warning, and enforcement"),
       createSkill("UI/UX Design", "creative", 4, "Interface design and user experience optimization"),
       createSkill("Security Audit", "security", 3, "Vulnerability detection and security hardening"),
+      CORE_GIT_SKILLS.merge,
+      CORE_GIT_SKILLS.push,
+      CORE_GIT_SKILLS.pull,
     ],
     heartbeat: createHeartbeat(5000, 5), // Faster heartbeat, higher tolerance
     budget: { dailyTokenLimit: 500000, dailyTokensUsed: 0, priority: "critical", overage: "allow" },
@@ -112,6 +123,10 @@ const INITIAL_AGENTS: Agent[] = [
     },
     credentials: {
       email: "asclepius.god.agent@gmail.com",
+      isAuthenticated: false,
+      authStatus: "unauthenticated",
+      google: { scopes: [], quotaUsed: 0 },
+      github: { scope: [], isConnected: false },
       geminiModel: "gemini-3.1-pro-preview",
       ollamaModel: "gemma4:e4b",
       ollamaBaseUrl: "http://localhost:11434",
@@ -141,6 +156,9 @@ const INITIAL_AGENTS: Agent[] = [
       createSkill("Workflow Design", "operations", 3, "Agent pipeline construction and optimization"),
       createSkill("System Monitoring", "analysis", 3, "Health check, metric tracking, and anomaly detection"),
       createSkill("Report Generation", "creative", 2, "Status reports, summaries, and dashboards"),
+      CORE_GIT_SKILLS.merge,
+      CORE_GIT_SKILLS.push,
+      CORE_GIT_SKILLS.pull,
     ],
     heartbeat: createHeartbeat(10000, 3),
     budget: { dailyTokenLimit: 200000, dailyTokensUsed: 0, priority: "high", overage: "warn" },
@@ -155,6 +173,10 @@ const INITIAL_AGENTS: Agent[] = [
     },
     credentials: {
       email: "asclepius.coo.agent@gmail.com",
+      isAuthenticated: false,
+      authStatus: "unauthenticated",
+      google: { scopes: [], quotaUsed: 0 },
+      github: { scope: [], isConnected: false },
       geminiModel: "gemini-3.1-flash-lite-preview",
       ollamaModel: "gemma4:e4b",
       ollamaBaseUrl: "http://localhost:11434",
@@ -168,16 +190,16 @@ const INITIAL_AGENTS: Agent[] = [
   {
     id: "a2",
     name: "Jules-Bridge",
-    role: "Platform Connector",
+    role: "Auth Orchestrator & Connection Health Monitor",
     status: "working",
-    lastAction: "Syncing with jules.google",
+    lastAction: "Monitoring fleet auth sessions",
     health: 95,
-    capabilities: ["API Integration", "Sandbox Management"],
+    capabilities: ["Auth Orchestration", "Token Management", "Connection Health"],
     skills: [
-      createSkill("API Integration", "engineering", 4, "REST/WebSocket API connections and management"),
-      createSkill("Sandbox Sync", "operations", 4, "Jules platform synchronization and session management"),
-      createSkill("Session Management", "operations", 3, "WebSocket session lifecycle and reconnection"),
-      createSkill("Data Serialization", "engineering", 2, "Request/response transformation and validation"),
+      createSkill("Auth Orchestration", "operations", 5, "OAuth lifecycle management for all fleet identities"),
+      createSkill("Token Management", "security", 4, "Secure token storage, refresh, and rotation"),
+      createSkill("Session Monitoring", "operations", 4, "Cloud connection health tracking and alerting"),
+      createSkill("API Integration", "engineering", 3, "REST/WebSocket API connections and management"),
     ],
     heartbeat: createHeartbeat(10000, 3),
     budget: { dailyTokenLimit: 100000, dailyTokensUsed: 0, priority: "normal", overage: "block" },
@@ -192,6 +214,10 @@ const INITIAL_AGENTS: Agent[] = [
     },
     credentials: {
       email: "asclepius.jules.bridge@gmail.com",
+      isAuthenticated: false,
+      authStatus: "unauthenticated",
+      google: { scopes: [], quotaUsed: 0 },
+      github: { scope: [], isConnected: false },
       geminiModel: "gemini-3.1-flash-lite-preview",
       ollamaModel: "gemma4:e4b",
       ollamaBaseUrl: "http://localhost:11434",
@@ -217,6 +243,10 @@ const INITIAL_AGENTS: Agent[] = [
       createSkill("Performance Analysis", "analysis", 3, "Identifies bottlenecks and optimization opportunities"),
       createSkill("Test Generation", "engineering", 3, "Creates unit, integration, and e2e test suites"),
       createSkill("Documentation", "creative", 2, "Generates code documentation and API references"),
+      CORE_GIT_SKILLS.create_branch,
+      CORE_GIT_SKILLS.commit,
+      CORE_GIT_SKILLS.push,
+      CORE_GIT_SKILLS.pull,
     ],
     heartbeat: createHeartbeat(10000, 3),
     budget: { dailyTokenLimit: 200000, dailyTokensUsed: 0, priority: "high", overage: "warn" },
@@ -231,6 +261,10 @@ const INITIAL_AGENTS: Agent[] = [
     },
     credentials: {
       email: "asclepius.healer.01@gmail.com",
+      isAuthenticated: false,
+      authStatus: "unauthenticated",
+      google: { scopes: [], quotaUsed: 0 },
+      github: { scope: [], isConnected: false },
       geminiModel: "gemini-3.1-pro-preview",
       ollamaModel: "gemma4:e4b",
       ollamaBaseUrl: "http://localhost:11434",
@@ -244,8 +278,43 @@ const INITIAL_AGENTS: Agent[] = [
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const [agents, setAgents] = useState<Agent[]>(() => secureGetItem<Agent[]>("asclepius_agents", INITIAL_AGENTS));
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem("asclepius_active_tab") || "dashboard");
+  const [agents, setAgents] = useState<Agent[]>(() => {
+    const cached = secureGetItem<Agent[]>("asclepius_agents", INITIAL_AGENTS);
+    // ─── Migration: Hydrate cached agents with Sovereign Identity fields (Article II) ───
+    // Agents saved before the identity system was added won't have authStatus, google, github.
+    // This migration ensures they get the new fields without requiring a localStorage clear.
+    const initialEmailMap = new Map(INITIAL_AGENTS.map(a => [a.id, a.credentials?.email]));
+    return cached.map(agent => {
+      const creds = agent.credentials;
+      if (creds && typeof (creds as any).authStatus === 'undefined') {
+        return {
+          ...agent,
+          credentials: {
+            ...creds,
+            email: creds.email || initialEmailMap.get(agent.id),
+            isAuthenticated: false,
+            authStatus: 'unauthenticated' as const,
+            google: (creds as any).google || { scopes: [], quotaUsed: 0 },
+            github: (creds as any).github || { scope: [], isConnected: false },
+          },
+        };
+      }
+      return agent;
+    });
+  });
+  
+  // ─── Sequential Orchestration State ───
+  // activeTokenAgentId: Holds the ID of the agent currently "talking" or "thinking".
+  // Only one agent can have the token at a time, ensuring sequential, non-exploding CPU usage.
+  const [activeTokenAgentId, setActiveTokenAgentId] = useState<string | null>(null);
+  
+  // ─── Neural Vault Stats (for Dashboard display) ───
+  const [vaultStats, setVaultStats] = useState<NeuralVaultStats>({
+    totalKnowledge: 0, totalEpisodes: 0, totalSkillScripts: 0,
+    avgConfidence: 0, topCategories: [], lastLearnedAt: null, mostAccessedTopic: null,
+  });
+  
   const [agentOrder, setAgentOrder] = useState<string[]>(() => {
     const saved = localStorage.getItem("asclepius_agent_order");
     if (saved) {
@@ -264,6 +333,13 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [draggedAgentId, setDraggedAgentId] = useState<string | null>(null);
   const [dragOverAgentId, setDragOverAgentId] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [gitHubStatus, setGitHubStatus] = useState<GitHubDesktopStatus | null>(null);
+
+  useEffect(() => {
+    detectGitHubDesktop().then(setGitHubStatus);
+  }, []);
+
   const [llmSettings, setLlmSettings] = useState<LLMSettings>(() => secureGetItem<LLMSettings>("antigravity_llm_settings", {
     provider: "gemini",
     ollamaBaseUrl: "http://localhost:11434",
@@ -278,8 +354,13 @@ export default function App() {
     },
   }));
 
+  // LLM settings change rarely — no debounce needed, but avoid re-encrypting on every render
+  const prevLlmRef = useRef(llmSettings);
   useEffect(() => {
-    secureSetItem("antigravity_llm_settings", llmSettings);
+    if (prevLlmRef.current !== llmSettings) {
+      prevLlmRef.current = llmSettings;
+      secureSetItem("antigravity_llm_settings", llmSettings);
+    }
   }, [llmSettings]);
 
   const [commandMessages, setCommandMessages] = useState<ChatMessage[]>(() => {
@@ -306,21 +387,154 @@ export default function App() {
     return [];
   });
 
-  // ─── Persistence Sync ───
-  useEffect(() => { secureSetItem("asclepius_agents", agents); }, [agents]);
-  useEffect(() => { localStorage.setItem("asclepius_agent_order", JSON.stringify(agentOrder)); }, [agentOrder]);
-  useEffect(() => { localStorage.setItem("asclepius_logs", JSON.stringify(logs.slice(0, 100))); }, [logs]); // Cap log persistence
-  useEffect(() => { localStorage.setItem("asclepius_messages", JSON.stringify(commandMessages.slice(-100))); }, [commandMessages]); // Keep last 100
-  useEffect(() => { localStorage.setItem("asclepius_tasks", JSON.stringify(scheduledTasks)); }, [scheduledTasks]);
+  // ─── Debounced Persistence Sync ───
+  // Instead of writing on every state change (which fires every 5s from heartbeat),
+  // we debounce all persistence writes to a 2-second window.
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fileSettingsSavedRef = useRef(false);
+  useEffect(() => {
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = setTimeout(() => {
+      // Local persistence (browser)
+      secureSetItem("asclepius_agents", agents);
+      localStorage.setItem("asclepius_agent_order", JSON.stringify(agentOrder));
+      localStorage.setItem("asclepius_logs", JSON.stringify(logs.slice(0, 100)));
+      localStorage.setItem("asclepius_messages", JSON.stringify(commandMessages.slice(-100)));
+      localStorage.setItem("asclepius_tasks", JSON.stringify(scheduledTasks));
+      localStorage.setItem("asclepius_active_tab", activeTab);
+
+      // File persistence (encrypted on disk) — saves critical settings
+      saveSettingsToFile({
+        llmSettings,
+        agents,
+        agentOrder,
+        activeTab,
+        version: 1,
+        savedAt: new Date().toISOString(),
+      }).then(ok => {
+        if (ok && !fileSettingsSavedRef.current) {
+          fileSettingsSavedRef.current = true;
+          console.log('[Settings] Initial file save complete');
+        }
+      });
+    }, 2000);
+    return () => { if (persistTimerRef.current) clearTimeout(persistTimerRef.current); };
+  }, [agents, agentOrder, logs, commandMessages, scheduledTasks, activeTab, llmSettings]);
+
+  // ─── Boot: Load settings from encrypted file ───
+  const [fileSettingsLoaded, setFileSettingsLoaded] = useState(false);
+  useEffect(() => {
+    if (fileSettingsLoaded) return;
+    loadSettingsFromFile().then((persisted) => {
+      if (persisted) {
+        // Hydrate LLM settings (API keys, models, provider)
+        if (persisted.llmSettings) {
+          setLlmSettings(prev => ({
+            ...prev,
+            ...persisted.llmSettings,
+            // Preserve runtime-only fields
+            usage: prev.usage,
+          }));
+        }
+        // Hydrate agents (credentials, skills, budgets) — with identity migration
+        if (persisted.agents && persisted.agents.length > 0) {
+          const initialEmailMap = new Map(INITIAL_AGENTS.map(a => [a.id, a.credentials?.email]));
+          setAgents(persisted.agents.map((agent: Agent) => {
+            const creds = agent.credentials;
+            if (creds && typeof (creds as any).authStatus === 'undefined') {
+              return {
+                ...agent,
+                credentials: {
+                  ...creds,
+                  email: creds.email || initialEmailMap.get(agent.id),
+                  isAuthenticated: false,
+                  authStatus: 'unauthenticated' as const,
+                  google: (creds as any).google || { scopes: [], quotaUsed: 0 },
+                  github: (creds as any).github || { scope: [], isConnected: false },
+                },
+              };
+            }
+            return agent;
+          }));
+        }
+        // Hydrate agent order
+        if (persisted.agentOrder && persisted.agentOrder.length > 0) {
+          setAgentOrder(persisted.agentOrder);
+        }
+        toast.success('Settings loaded from asclepius.config.enc');
+        console.log(`[Settings] Hydrated from file (saved ${persisted.savedAt})`);
+      }
+      setFileSettingsLoaded(true);
+    });
+  }, [fileSettingsLoaded]);
 
   // ─── Projects State ───
   const [projects, setProjects] = useState<Project[]>(() => {
+    
+    const defaultProjects: Project[] = [
+      {
+        id: "proj-asclepius-core",
+        name: "Asclepius Core",
+        description: "Recursive self-improvement project for the Asclepius autonomous agency.",
+        path: "F:/012A_Github/asclepius",
+        status: "active",
+        githubUrl: "https://github.com/BinqQarenYu/asclepius",
+        assignedAgentIds: ["god", "coo"],
+        techStack: ["React", "TypeScript", "Vite"],
+        priority: "critical",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        goals: [
+          { id: "g1", title: "Maintain System Health", description: "Ensure 0 UI crashes", status: "in_progress", progress: 85, createdAt: new Date().toISOString() },
+          { id: "g2", title: "Expand Agent Capabilities", description: "Add advanced JSON tools", status: "pending", progress: 10, createdAt: new Date().toISOString() }
+        ]
+      },
+      {
+        id: "proj-mandelbrot",
+        name: "Mandelbrot Explorer",
+        description: "Interactive WebGL-accelerated Mandelbrot fractal viewer with deep zoom capabilities.",
+        path: "F:/012A_Github/mandelbrot",
+        status: "active",
+        githubUrl: "https://github.com/BinqQarenYu/mandelbrot",
+        assignedAgentIds: ["coo", "a3"],
+        techStack: ["React", "WebGL", "TypeScript"],
+        priority: "high",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        goals: [
+          { id: "m1", title: "Initialize Sandbox Repository", description: "Setup the project folder and config", status: "pending", progress: 0, createdAt: new Date().toISOString() },
+          { id: "m2", title: "Implement WebGL Shader", description: "Write the raw fragment shader for the fractal", status: "pending", progress: 0, createdAt: new Date().toISOString() }
+        ]
+      }
+    ];
+
     const saved = localStorage.getItem("asclepius_projects");
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
+      try { 
+        const parsed = JSON.parse(saved);
+        if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+          // Sanitize old data to prevent crashes
+          const sanitized = parsed.map(p => ({
+            ...p,
+            techStack: p.techStack || [],
+            priority: p.priority || "medium",
+            assignedAgentIds: p.assignedAgentIds || [],
+            githubUrl: p.githubUrl || p.repoUrl || "",
+            goals: p.goals || []
+          }));
+          // If Mandelbrot is missing from their local storage, inject it!
+          if (!sanitized.find((p: Project) => p.id === "proj-mandelbrot")) {
+            return [...sanitized, defaultProjects[1]];
+          }
+          return sanitized;
+        }
+      } catch (e) { /* ignore */ }
     }
-    return [];
+    
+    // Self-Healing Protocol: Inject default projects
+    return defaultProjects;
   });
+
   useEffect(() => { localStorage.setItem("asclepius_projects", JSON.stringify(projects)); }, [projects]);
 
   // ─── Sandbox Runs State ───
@@ -349,6 +563,18 @@ export default function App() {
       };
     });
     setLogs((prev) => [...fleetBootLog, ...prev].slice(0, 50));
+
+    // ─── Neural Vault Initialization ───
+    initializeNeuralVault().then((stats) => {
+      setVaultStats(stats);
+      setLogs((prev) => [{
+        id: `vault-boot-${Date.now()}`,
+        timestamp: new Date().toLocaleTimeString(),
+        agentId: "God-Agent",
+        message: `[NEURAL VAULT] Initialized: ${stats.totalKnowledge} knowledge nodes, ${stats.totalEpisodes} episodes, ${stats.totalSkillScripts} skill scripts. Avg confidence: ${stats.avgConfidence}%`,
+        type: "success" as const,
+      }, ...prev].slice(0, 50));
+    });
 
     // Stage 1: Boot initialization sweep
     const bootTimer = setTimeout(() => {
@@ -426,6 +652,13 @@ export default function App() {
         );
       }, 3000); // Audit takes 3 seconds
     }, FIVE_HOURS_MS);
+    // Initial GitHub Desktop detection
+    detectGitHubDesktop().then(status => {
+      setGitHubStatus(status);
+      if (status.githubDesktopInstalled) {
+        console.log("[App] GitHub Desktop bridge active");
+      }
+    });
 
     return () => {
       clearTimeout(bootTimer);
@@ -433,84 +666,91 @@ export default function App() {
     };
   }, []);
 
-  // ─── Heartbeat Engine ───
-  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // ─── Unified Agent Tick Engine ───
+  // PERF: Consolidates heartbeat (was 3s), recovery watchdog (was 15s), and
+  // health regen (was 30s) into ONE interval. This reduces from 3 separate
+  // setAgents calls to 1, cutting React re-renders by ~66%.
+  const unifiedTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const tickCountRef = useRef(0);
+  const isTabVisibleRef = useRef(true);
+
+  // Pause all heavy work when tab is hidden (saves CPU when user switches tabs)
+  useEffect(() => {
+    const handleVisibility = () => {
+      isTabVisibleRef.current = document.visibilityState === "visible";
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, []);
 
   useEffect(() => {
-    heartbeatRef.current = setInterval(() => {
-      const now = Date.now();
+    unifiedTickRef.current = setInterval(() => {
+      // Skip heavy processing when tab is hidden — saves CPU
+      if (!isTabVisibleRef.current) return;
 
-      setAgents((prev) =>
-        prev.map((agent) => {
-          // Don't beat paused or terminated agents
+      tickCountRef.current += 1;
+      const tickNum = tickCountRef.current;
+      const now = Date.now();
+      const nowISO = new Date().toISOString(); // Create ONCE, reuse
+      const nowTime = new Date().toLocaleTimeString();
+
+      setAgents((prev) => {
+        let hasDeadAgents = false;
+        const deadNames: string[] = [];
+
+        const updated = prev.map((agent) => {
+          // ─── Skip paused agents entirely ───
           if (agent.status === "paused") return agent;
 
-          const hb = { ...agent.heartbeat };
-          const lastBeatTime = new Date(hb.lastBeat).getTime();
-          const elapsed = now - lastBeatTime;
+          let a = agent;
 
-          // Simulate a heartbeat response (randomized response time)
+          // ═══ HEARTBEAT (every tick = 5s) ═══
+          const hb = agent.heartbeat;
           const baseResponse = agent.id === "god" ? 8 : agent.id === "coo" ? 25 : 15 + Math.random() * 40;
           const responseTime = Math.round(baseResponse + Math.random() * 15);
-          const isHealthy = Math.random() > 0.02; // 2% chance of a missed beat
+          const isHealthy = Math.random() > 0.02; // 2% miss chance
 
           if (isHealthy) {
-            // Successful beat
-            const entry = {
-              timestamp: new Date().toISOString(),
-              responseTime,
-              healthy: true,
-            };
-            const newHistory = [...hb.history, entry].slice(-20); // Keep last 20
+            const entry = { timestamp: nowISO, responseTime, healthy: true };
+            // Avoid intermediate array: push + pop instead of spread + slice
+            const newHistory = hb.history.length >= 20
+              ? [...hb.history.slice(1), entry]
+              : [...hb.history, entry];
 
-            // Calculate rolling average
             const avgResp = Math.round(
               newHistory.reduce((s, e) => s + e.responseTime, 0) / newHistory.length
             );
-
-            // Calculate uptime
-            const totalBeats = newHistory.length;
             const healthyBeats = newHistory.filter((e) => e.healthy).length;
-            const uptime = totalBeats > 0 ? Math.round((healthyBeats / totalBeats) * 1000) / 10 : 100;
+            const uptime = Math.round((healthyBeats / newHistory.length) * 1000) / 10;
 
-            return {
-              ...agent,
+            a = {
+              ...a,
               heartbeat: {
                 ...hb,
-                lastBeat: new Date().toISOString(),
+                lastBeat: nowISO,
                 missedBeats: 0,
-                status: "alive",
+                status: "alive" as const,
                 avgResponseTime: avgResp,
                 uptimePercent: uptime,
                 history: newHistory,
               },
             };
           } else {
-            // Missed beat
             const newMissed = hb.missedBeats + 1;
-            let newStatus = hb.status;
+            const newStatus: typeof hb.status =
+              newMissed >= hb.maxMissed ? "dead" :
+              newMissed >= 2 ? "unresponsive" :
+              "degraded";
 
-            if (newMissed >= hb.maxMissed) {
-              newStatus = "dead";
-            } else if (newMissed >= 2) {
-              newStatus = "unresponsive";
-            } else if (newMissed >= 1) {
-              newStatus = "degraded";
-            }
-
-            const entry = {
-              timestamp: new Date().toISOString(),
-              responseTime: 0,
-              healthy: false,
-            };
-            const newHistory = [...hb.history, entry].slice(-20);
-
-            const totalBeats = newHistory.length;
+            const entry = { timestamp: nowISO, responseTime: 0, healthy: false };
+            const newHistory = hb.history.length >= 20
+              ? [...hb.history.slice(1), entry]
+              : [...hb.history, entry];
             const healthyBeats = newHistory.filter((e) => e.healthy).length;
-            const uptime = totalBeats > 0 ? Math.round((healthyBeats / totalBeats) * 1000) / 10 : 100;
+            const uptime = Math.round((healthyBeats / newHistory.length) * 1000) / 10;
 
-            return {
-              ...agent,
+            a = {
+              ...a,
               heartbeat: {
                 ...hb,
                 missedBeats: newMissed,
@@ -518,119 +758,98 @@ export default function App() {
                 uptimePercent: uptime,
                 history: newHistory,
               },
-              // Auto-degrade health when heartbeat is failing
-              health: newStatus === "dead" ? Math.max(0, agent.health - 25) : 
-                      newStatus === "unresponsive" ? Math.max(10, agent.health - 10) :
-                      agent.health,
+              health: newStatus === "dead" ? Math.max(0, a.health - 25) :
+                      newStatus === "unresponsive" ? Math.max(10, a.health - 10) :
+                      a.health,
             };
-          }
-        })
-      );
-    }, 3000); // Global heartbeat tick every 3s
 
-    return () => {
-      if (heartbeatRef.current) clearInterval(heartbeatRef.current);
-    };
-  }, []);
-
-  // ─── Dead Agent Auto-Recovery Watchdog ───
-  const recoveryRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  useEffect(() => {
-    recoveryRef.current = setInterval(() => {
-      setAgents((prev) => {
-        const deadAgents = prev.filter(
-          (a) => a.heartbeat.status === "dead" && a.status !== "paused"
-        );
-
-        if (deadAgents.length === 0) return prev;
-
-        // Log recovery events
-        deadAgents.forEach((dead) => {
-          const recoveryLog: LogEntry = {
-            id: `recovery-${dead.id}-${Date.now()}`,
-            timestamp: new Date().toLocaleTimeString(),
-            agentId: dead.name,
-            message: `[AUTO-RECOVERY] Agent heartbeat was DEAD (${dead.heartbeat.missedBeats} missed beats). Initiating automatic restart...`,
-            type: "error",
-          };
-          setLogs((prevLogs) => [recoveryLog, ...prevLogs].slice(0, 50));
-
-          // Post to Command Center
-          setCommandMessages((prevMsgs) => [
-            ...prevMsgs,
-            {
-              id: `recovery-alert-${dead.id}-${Date.now()}`,
-              role: "system" as const,
-              sender: "WATCHDOG",
-              content: `⚠️ **AUTO-RECOVERY:** ${dead.name} (${dead.credentials?.email || "unprovisioned"}) was detected DEAD. Heartbeat reset executed. Health degraded to ${Math.max(0, dead.health - 25)}%.`,
-              timestamp: new Date().toLocaleTimeString(),
-            },
-          ]);
-        });
-
-        // Reset dead agents
-        return prev.map((agent) => {
-          if (agent.heartbeat.status !== "dead" || agent.status === "paused") return agent;
-
-          return {
-            ...agent,
-            status: "idle" as const,
-            lastAction: "Recovered from heartbeat failure",
-            health: Math.min(100, agent.health + 50), // Partial health restoration
-            heartbeat: {
-              ...agent.heartbeat,
-              missedBeats: 0,
-              status: "alive" as const,
-              lastBeat: new Date().toISOString(),
-            },
-          };
-        });
-      });
-    }, 15000); // Check every 15 seconds
-
-    return () => {
-      if (recoveryRef.current) clearInterval(recoveryRef.current);
-    };
-  }, []);
-
-  // ─── Health Regeneration & Daily Quota Reset ───
-  useEffect(() => {
-    const regenInterval = setInterval(() => {
-      setAgents((prev) =>
-        prev.map((agent) => {
-          let updated = agent;
-
-          // Passive Health Regen: +5hp every 30s for alive, non-paused agents below 100
-          if (
-            agent.heartbeat.status === "alive" &&
-            agent.status !== "paused" &&
-            agent.health < 100
-          ) {
-            updated = { ...updated, health: Math.min(100, agent.health + 5) };
-          }
-
-          // Daily Quota Reset: check if the day has rolled over
-          if (agent.credentials?.lastQuotaReset) {
-            const lastReset = new Date(agent.credentials.lastQuotaReset).toDateString();
-            const today = new Date().toDateString();
-            if (lastReset !== today) {
-              updated = {
-                ...updated,
-                credentials: {
-                  ...updated.credentials,
-                  quotaUsed: 0,
-                  lastQuotaReset: new Date().toISOString(),
-                },
-              };
+            if (newStatus === "dead") {
+              hasDeadAgents = true;
+              deadNames.push(a.name);
             }
           }
 
-          return updated;
-        })
-      );
-    }, 30000); // Every 30 seconds
+          // ═══ RECOVERY (every 3rd tick = ~15s) ═══
+          if (tickNum % 3 === 0 && a.heartbeat.status === "dead") {
+            a = {
+              ...a,
+              status: "idle" as const,
+              lastAction: "Recovered from heartbeat failure",
+              health: Math.min(100, a.health + 50),
+              heartbeat: {
+                ...a.heartbeat,
+                missedBeats: 0,
+                status: "alive" as const,
+                lastBeat: nowISO,
+              },
+            };
+          }
 
-    return () => clearInterval(regenInterval);
+          // ═══ HEALTH REGEN + QUOTA RESET (every 6th tick = ~30s) ═══
+          if (tickNum % 6 === 0) {
+            // Passive regen
+            if (a.heartbeat.status === "alive" && a.health < 100) {
+              a = { ...a, health: Math.min(100, a.health + 5) };
+            }
+            // Daily quota reset
+            if (a.credentials?.lastQuotaReset) {
+              const lastReset = new Date(a.credentials.lastQuotaReset).toDateString();
+              const today = new Date().toDateString();
+              if (lastReset !== today) {
+                a = {
+                  ...a,
+                  credentials: { ...a.credentials, quotaUsed: 0, lastQuotaReset: nowISO },
+                };
+              }
+            }
+          }
+
+          return a;
+        });
+
+        // ═══ Recovery logging (outside the map to avoid nested setState) ═══
+        if (hasDeadAgents && tickNum % 3 === 0) {
+          deadNames.forEach((name) => {
+            setLogs((prevLogs) => [{
+              id: `recovery-${name}-${now}`,
+              timestamp: nowTime,
+              agentId: name,
+              message: `[AUTO-RECOVERY] Agent heartbeat was DEAD. Automatic restart executed.`,
+              type: "error" as const,
+            }, ...prevLogs].slice(0, 50));
+
+            setCommandMessages((prevMsgs) => [...prevMsgs, {
+              id: `recovery-alert-${name}-${now}`,
+              role: "system" as const,
+              sender: "WATCHDOG",
+              content: `⚠️ **AUTO-RECOVERY:** ${name} was detected DEAD. Heartbeat reset executed.`,
+              timestamp: nowTime,
+            }]);
+          });
+        }
+
+        return updated;
+      });
+    }, 5000); // Unified tick: 5 seconds
+
+    // T17: Neural Vault confidence decay — runs every ~30 minutes (360 ticks × 5s)
+    const decayInterval = setInterval(async () => {
+      if (!isTabVisibleRef.current) return;
+      try {
+        const decayedCount = await applyConfidenceDecay(0.02, 0.1);
+        if (decayedCount > 0) {
+          const stats = await getVaultStats();
+          setVaultStats(stats);
+        }
+      } catch (e) {
+        console.warn('[NeuralVault] Confidence decay failed:', e);
+      }
+    }, 1800000); // 30 minutes
+
+    return () => {
+      if (unifiedTickRef.current) clearInterval(unifiedTickRef.current);
+      clearInterval(decayInterval);
+    };
   }, []);
 
   // ─── Drag & Drop ───
@@ -704,132 +923,8 @@ export default function App() {
       )
     : orderedAgents;
 
-  // Task Scheduler Logic
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      const now = new Date();
-
-      for (const task of scheduledTasks) {
-        if (task.status !== "active") continue;
-
-        let shouldRun = false;
-        if (task.type === "interval") {
-          const lastRunTime = task.lastRun
-            ? new Date(task.lastRun).getTime()
-            : 0;
-          if (now.getTime() - lastRunTime >= (task.intervalMs || 60000)) {
-            shouldRun = true;
-          }
-        } else if (task.type === "once") {
-          const scheduledTime = new Date(task.scheduledTime!).getTime();
-          if (now.getTime() >= scheduledTime && !task.lastRun) {
-            shouldRun = true;
-          }
-        }
-
-        if (shouldRun) {
-          const agent = agents.find((a) => a.id === task.agentId);
-          if (agent) {
-            const settings = resolveAgentSettings(agent, llmSettings);
-            const action = await getUnifiedChatResponse(
-              settings,
-              "What is your next action to help the developer? Keep it short and professional.",
-              [],
-              `Scheduled Task: ${task.description}`,
-              agent.name,
-              agent.role
-            );
-
-            const newLog: LogEntry = {
-              id: Math.random().toString(36).substr(2, 9),
-              timestamp: new Date().toLocaleTimeString(),
-              agentId: agent.name,
-              message: `[SCHEDULED] ${action}`,
-              type: "info",
-            };
-
-            setLogs((prev) => [newLog, ...prev].slice(0, 50));
-
-            setScheduledTasks((prev) =>
-              prev.map((t) =>
-                t.id === task.id
-                  ? {
-                      ...t,
-                      lastRun: now.toISOString(),
-                      status: t.type === "once" ? "completed" : "active",
-                    }
-                  : t
-              )
-            );
-
-            // Auto-resolve sandbox errors when [SANDBOX] fix tasks complete
-            if (task.type === "once" && task.description.startsWith("[SANDBOX]")) {
-              setSandboxRuns((prevRuns) =>
-                prevRuns.map((run) => ({
-                  ...run,
-                  errors: run.errors.map((err) => {
-                    if (
-                      err.status === "open" &&
-                      task.description.includes(err.message.slice(0, 40))
-                    ) {
-                      return { ...err, status: "resolved" as const };
-                    }
-                    return err;
-                  }),
-                }))
-              );
-            }
-            // ─── Award XP when a task completes ───
-            if (task.type === "once") {
-              const category = task.description.toLowerCase().includes("bug") || task.description.toLowerCase().includes("fix") ? "engineering" : "operations";
-              const { updatedAgent, levelUps } = awardAgentXP(agent, category, 100);
-              
-              // ─── Update Reputation ───
-              const newTotal = (updatedAgent.reputation.totalTasks || 0) + 1;
-              const newFailed = updatedAgent.reputation.failedTasks || 0;
-              const newRate = Math.round(((newTotal - newFailed) / newTotal) * 100);
-              const prevRate = updatedAgent.reputation.successRate;
-              const trend = newRate > prevRate ? "improving" : newRate < prevRate ? "declining" : "stable";
-              
-              const reputationAgent: Agent = {
-                ...updatedAgent,
-                reputation: {
-                  ...updatedAgent.reputation,
-                  totalTasks: newTotal,
-                  successRate: newRate,
-                  trend: trend as Agent["reputation"]["trend"],
-                },
-              };
-              handleUpdateAgent(reputationAgent);
-              
-              levelUps.forEach(msg => {
-                postSystemMessage("SYSTEM", `🎉 **LEVEL UP:** ${reputationAgent.name} - ${msg}`);
-                toast.success(`Level Up! ${reputationAgent.name}: ${msg}`);
-                
-                // ─── Autonomous Evolution Loop ───
-                // When reaching L5, the agent proposes their own architecture refactor
-                if (msg.includes("L5")) {
-                  const evolutionTask: Omit<ScheduledTask, "id"> = {
-                    agentId: reputationAgent.id,
-                    description: `[AUTONOMOUS EVOLUTION] As a newly minted L5 Master, propose a systemic architecture refactor or tool upgrade for the Asclepius platform.`,
-                    type: "once",
-                    scheduledTime: new Date(Date.now() + 60000).toISOString(), // Schedule in 1 minute
-                    intervalMs: 60000
-                  };
-                  handleAddTask(evolutionTask);
-                  postSystemMessage("CORE", `[EVOLUTION LOOP] ${reputationAgent.name} has scheduled an autonomous self-improvement task after reaching Master Level.`);
-                }
-              });
-            }
-
-            toast.info(`Scheduled Task: ${agent.name} - ${task.description}`);
-          }
-        }
-      }
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [scheduledTasks, agents]);
+  // NOTE: Task execution logic has been migrated to the Sequential Agent Orchestrator
+  // (executeSequentialTurn). The old independent timer is no longer needed.
 
   const handleAddTask = (taskData: Omit<ScheduledTask, "id" | "status">) => {
     const newTask: ScheduledTask = {
@@ -982,77 +1077,185 @@ export default function App() {
     [agents]
   );
 
-  // Simulate agent activity
+  // ─── Sequential Agent Orchestrator (The "One-at-a-time" Engine) ───
+  // PERF: This is the brain of the sequential system. Instead of multiple intervals 
+  // fighting for the CPU, this ONE loop manages the "Communication Token".
+  // It alternates between executing Scheduled Tasks and random Simulation Activities.
   useEffect(() => {
-    const interval = setInterval(async () => {
-      const activeAgents = agents.filter((a) => a.status !== "paused");
-      if (activeAgents.length === 0) return;
+    const orchestratorInterval = setInterval(async () => {
+      // 1. Skip if tab is hidden or an agent is already holding the token
+      if (!isTabVisibleRef.current || activeTokenAgentId) return;
 
-      const randomAgent =
-        activeAgents[Math.floor(Math.random() * activeAgents.length)];
+      const now = new Date();
 
-      const statuses: Agent["status"][] = ["idle", "working", "learning"];
-      const newStatus =
-        statuses[Math.floor(Math.random() * statuses.length)];
-
-      const settings = resolveAgentSettings(randomAgent, llmSettings);
-      const action = await getUnifiedChatResponse(
-        settings,
-        "What is your next action to help the developer? Keep it short and professional.",
-        [],
-        `Agent is currently ${newStatus}.`,
-        randomAgent.name,
-        randomAgent.role
+      // 2. CHECK FOR DUE TASKS (Priority 1)
+      const dueTask = scheduledTasks.find(t => 
+        t.status === "active" && new Date(t.scheduledTime) <= now
       );
 
-      const newLog: LogEntry = {
-        id: Math.random().toString(36).substr(2, 9),
-        timestamp: new Date().toLocaleTimeString(),
-        agentId: randomAgent.name,
-        message: action,
-        type: newStatus === "working" ? "info" : "success",
-      };
-
-      setLogs((prev) => [newLog, ...prev].slice(0, 50));
-
-      setAgents((prev) =>
-        prev.map((a) => {
-          if (a.status === "paused") return a; // Don't touch paused agents
-
-          const newCpu = Math.max(1, Math.min(100, a.metrics.cpu + (Math.random() * 10 - 5)));
-          const newMem = Math.max(100, Math.min(4096, a.metrics.memory + (Math.random() * 50 - 25)));
-          const newLat = Math.max(5, Math.min(500, a.metrics.latency + (Math.random() * 20 - 10)));
-
-          if (a.id === randomAgent.id) {
-            return {
-              ...a,
-              status: newStatus,
-              lastAction: action,
-              metrics: {
-                cpu: Math.round(newCpu),
-                memory: Math.round(newMem),
-                latency: Math.round(newLat),
-              },
-            };
-          }
-          return {
-            ...a,
-            metrics: {
-              cpu: Math.round(newCpu),
-              memory: Math.round(newMem),
-              latency: Math.round(newLat),
-            },
-          };
-        })
-      );
-
-      if (Math.random() > 0.9) {
-        toast.info(`${randomAgent.name}: ${action}`);
+      if (dueTask) {
+        const agent = agents.find(a => a.id === dueTask.agentId);
+        if (agent && agent.status !== "paused") {
+          await executeSequentialTurn(agent, "task", dueTask);
+          return; // Wait for next tick after turn completes
+        }
       }
-    }, 8000);
 
-    return () => clearInterval(interval);
-  }, [agents]);
+      // 3. RANDOM SIMULATION ACTIVITY (Priority 2 - 30% chance per tick)
+      if (Math.random() > 0.7) {
+        const activeAgents = agents.filter(a => a.status !== "paused" && a.id !== "god");
+        if (activeAgents.length > 0) {
+          const randomAgent = activeAgents[Math.floor(Math.random() * activeAgents.length)];
+          await executeSequentialTurn(randomAgent, "sim");
+        }
+      }
+    }, 5000); // Check for work every 5 seconds
+
+    return () => clearInterval(orchestratorInterval);
+  }, [agents, scheduledTasks, activeTokenAgentId, llmSettings]);
+
+  /**
+   * executeSequentialTurn: The atomic "turn" logic.
+   * Grabs token -> Performs work (LLM or Task) -> Releases token.
+   */
+  const executeSequentialTurn = async (agent: Agent, type: "task" | "sim", task?: ScheduledTask) => {
+    // A. Grab the Token
+    setActiveTokenAgentId(agent.id);
+    
+    // B. Mark Agent as Working
+    setAgents(prev => prev.map(a => a.id === agent.id ? { ...a, status: "working" as const } : a));
+
+    try {
+      if (type === "task" && task) {
+        // --- REAL TASK EXECUTION ---
+        const taskDescription = task.description;
+        
+        // T11: Inject relevant wisdom from the Neural Vault before LLM call
+        let wisdomInjection = '';
+        try {
+          const { wisdomBlock } = await getRelevantWisdom(taskDescription, 3);
+          wisdomInjection = wisdomBlock;
+        } catch (e) {
+          console.warn('[NeuralVault] Wisdom retrieval failed, continuing without:', e);
+        }
+
+        const systemPrompt = `You are ${agent.name} (${agent.role}). You have been assigned this task: "${taskDescription}". 
+        Execute it professionally. If it involves code, provide a logic summary. Stay in character.
+        ${wisdomInjection}
+        After completing this task, if you learned something valuable, output a LEARN_WISDOM action to store it in the Neural Vault.`;
+
+        // Resolve credentials
+        const settings = resolveAgentSettings(agent, llmSettings);
+        
+        // Call LLM (The "Thinking" time)
+        const response = await getUnifiedChatResponse(
+          settings,
+          `Perform task: ${taskDescription}`,
+          [],
+          systemPrompt,
+          agent.name,
+          agent.role
+        );
+
+        // Update Logs & Messages
+        const newLog: LogEntry = {
+          id: `task-log-${Date.now()}`,
+          timestamp: new Date().toLocaleTimeString(),
+          agentId: agent.name,
+          message: `[TASK_COMPLETE] ${taskDescription}: ${response.slice(0, 100)}...`,
+          type: "success",
+        };
+        setLogs(prev => [newLog, ...prev].slice(0, 50));
+        
+        postSystemMessage(agent.name, `### TASK_COMPLETE: ${taskDescription}\n\n${response}`);
+
+        // Award XP & Update Reputation
+        const category = taskDescription.toLowerCase().includes("bug") ? "engineering" : "operations";
+        const { updatedAgent } = awardAgentXP(agent, category as any, 100);
+        handleUpdateAgent({
+          ...updatedAgent,
+          lastAction: `Completed task: ${taskDescription}`,
+          status: "idle",
+          reputation: {
+            ...updatedAgent.reputation,
+            totalTasks: (updatedAgent.reputation.totalTasks || 0) + 1,
+            successRate: Math.min(100, updatedAgent.reputation.successRate + 1)
+          }
+        });
+
+        // Delete/Reschedule task
+        if (task.type === "once") {
+          handleDeleteTask(task.id);
+        } else {
+          // Handle interval rescheduling...
+          const nextTime = new Date(Date.now() + (task.intervalMs || 60000)).toISOString();
+          setScheduledTasks(prev => prev.map(t => t.id === task.id ? { ...t, scheduledTime: nextTime } : t));
+        }
+
+        // T11: Record episode in Neural Vault (Episodic Memory)
+        try {
+          await recordEpisode(
+            agent.id,
+            `Completed task: ${taskDescription}`,
+            taskDescription,
+            'success',
+            response.slice(0, 200)
+          );
+          // Refresh vault stats for dashboard
+          const stats = await getVaultStats();
+          setVaultStats(stats);
+        } catch (e) {
+          console.warn('[NeuralVault] Episode recording failed:', e);
+        }
+
+      } else {
+        // --- SIMULATION TURN ---
+        const actionTemplates = [
+          "Optimizing system health metrics", "Analyzing code patterns", "Scanning for security vulnerabilities",
+          "Reviewing communication logs", "Optimizing memory allocation", "Running diagnostic checks"
+        ];
+        const action = actionTemplates[Math.floor(Math.random() * actionTemplates.length)];
+
+        // Simulate thinking time (1.5s - 3s) for simulation activities
+        await new Promise(resolve => setTimeout(resolve, 1500 + Math.random() * 1500));
+
+        setAgents(prev => prev.map(a => a.id === agent.id ? { 
+          ...a, 
+          status: "idle", 
+          lastAction: action,
+          metrics: {
+            ...a.metrics,
+            cpu: Math.max(1, Math.min(100, a.metrics.cpu + (Math.random() * 4 - 2))),
+            memory: Math.max(100, Math.min(4096, a.metrics.memory + (Math.random() * 20 - 10)))
+          }
+        } : a));
+      }
+    } catch (error) {
+      console.error(`Orchestrator error for ${agent.name}:`, error);
+      postSystemMessage("SYSTEM", `⚠️ [ERROR] ${agent.name} failed turn execution: ${error instanceof Error ? error.message : "Timeout"}`);
+      setAgents(prev => prev.map(a => a.id === agent.id ? { ...a, status: "error" as const } : a));
+
+      // T18: Record failure episode — the system learns from mistakes too
+      try {
+        await recordEpisode(
+          agent.id,
+          `Failed: ${type === 'task' && task ? task.description : 'simulation'}`,
+          `Agent ${agent.name} encountered an error during ${type} execution`,
+          'failure',
+          error instanceof Error ? error.message : 'Unknown error'
+        );
+        const stats = await getVaultStats();
+        setVaultStats(stats);
+      } catch (e) {
+        console.warn('[NeuralVault] Failure episode recording failed:', e);
+      }
+    } finally {
+      // C. Cooldown (Breathing Room) before releasing token
+      setTimeout(() => {
+        setActiveTokenAgentId(null);
+      }, 2000); // 2s gap between agents talking
+    }
+  };
 
   // Stat cards data — Leak #1 fix: compute health from live signals, not static field
   const activeAgentsCount = agents.filter((a) => a.status === "working").length;
@@ -1176,6 +1379,17 @@ export default function App() {
                   iconColor: "text-sky-400",
                   hasBar: true,
                   barValue: Math.min(100, Math.round((fleetQuotaUsed / fleetQuotaTotal) * 100)),
+                },
+                {
+                  label: "Neural Vault",
+                  value: vaultStats.totalKnowledge.toString(),
+                  sub: `${vaultStats.avgConfidence}% avg trust · ${vaultStats.totalEpisodes} episodes`,
+                  subColor: vaultStats.totalKnowledge > 0 ? "text-violet-400" : "text-muted-foreground/40",
+                  icon: Brain,
+                  gradient: "from-violet-500/10 to-violet-500/0",
+                  iconColor: "text-violet-400",
+                  hasBar: true,
+                  barValue: vaultStats.avgConfidence,
                 },
               ].map((stat) => (
                 <div
@@ -1477,6 +1691,7 @@ export default function App() {
             sandboxRuns={sandboxRuns}
             onUpdateSandboxRuns={setSandboxRuns}
             activeProjectId={activeProjectId}
+            activeTokenAgentId={activeTokenAgentId}
           />
         );
       case "scheduler":
@@ -1528,6 +1743,13 @@ export default function App() {
             <LogViewer logs={logs} />
           </div>
         );
+      case "chronicle":
+        return (
+          <Chronicle
+            vaultStats={vaultStats}
+            onStatsUpdate={setVaultStats}
+          />
+        );
       default:
         return null;
     }
@@ -1574,6 +1796,18 @@ export default function App() {
                 <ShieldAlert className="w-3 h-3 mr-1.5 animate-pulse" />
                 Stop All
               </Button>
+
+              {/* GitHub Desktop Status */}
+              <div className="flex items-center gap-2">
+                <div className={cn(
+                  "w-1.5 h-1.5 rounded-full",
+                  gitHubStatus?.githubDesktopInstalled ? "bg-emerald-400 status-dot-pulse" : "bg-zinc-500"
+                )} />
+                <span className="text-[10px] font-medium text-muted-foreground/60 flex items-center gap-1">
+                  <Github className="w-3 h-3" />
+                  {gitHubStatus?.githubDesktopInstalled ? "Desktop Linked" : "Git Ready"}
+                </span>
+              </div>
 
               {/* Status */}
               <div className="flex items-center gap-2">

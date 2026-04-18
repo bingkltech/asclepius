@@ -1,15 +1,32 @@
 # ⚕️ Asclepius — Living Context Map & System Architecture
 
-> **VERSION:** v2.9 · **LAST AUDIT:** 2026-04-17  
-> **PURPOSE:** This document is the Amnesia Guard. Any AI model reading this file gains total system awareness without hallucination risk. Every claim is traced to an exact file and line range.
+> **VERSION:** v3.0 · **LAST AUDIT:** 2026-04-18  
+> **PURPOSE:** This document is the Amnesia Guard. Any AI model reading this file gains total system awareness without hallucination risk. Every claim is traced to an exact file and line range.  
+> **AUTHORITY:** This document is subordinate to [📜 CONSTITUTION.md](CONSTITUTION.md). All invariants and design decisions in this file must comply with the Constitution's 7 articles.
 
 ---
 
-## 1. CORE PHILOSOPHY — How The Agents Actually Interact
+## 0. CONSTITUTIONAL ALIGNMENT
+
+This Context Map implements the technical details of the [📜 Constitution](CONSTITUTION.md). Key article mappings:
+
+| Constitution Article | Implementation In This File |
+|---|---|
+| **I. Cognitive Management Plane** | Section 1 (Core Philosophy), Section 3.4 (LLM Service) |
+| **II. Sovereign Agent Identity** | Section 6 (Persistence Map — encrypted credential storage), Section 1 (per-agent auth) |
+| **III. Slow Loop Engine** | Section 7 (Timer & Interval Registry) |
+| **IV. Delivery Pipeline** | Section 1 (Communication Flow), Section 3.2 (Sandbox) |
+| **V. Verifier Sandbox** | Section 3.2 (Sandbox invariants) |
+| **VI. Distributed Power** | Section 1 (Jules-Bridge State Protocol) |
+| **VII. Lookback-Forward** | Section 5 (Context Window Management) |
+
+---
+
+## 1. CORE PHILOSOPHY — The Cognitive Management Plane
 
 ### The Three-Body Orchestration
 
-Asclepius is not a chatbot with multiple personas. It is a **hierarchical autonomous workforce** where each agent has distinct authority, distinct credentials, and distinct cognitive models.
+Asclepius is a **Cognitive Management Plane** (Constitution Article I) — it embodies the God-Agent's strategic mind while offloading all neural inference compute to cloud APIs. The local application manages context, delegates tasks, and verifies outputs. Each agent IS its own Google Identity (Article II: Sovereign Agent Identity) with its own Gmail account, its own `jules.google` access, and its own cognitive model.
 
 ```
    ┌─────────────────────────────────────────────────────────────┐
@@ -55,15 +72,15 @@ This context includes:
 **Step 6: JSON action interception → regex parse `json:action` blocks**  
 **Step 7: Execute side effects → spawn agents, schedule tasks, update goals**  
 
-### The Jules-Bridge State Protocol
+### The Jules-Bridge Auth Protocol (Constitution Articles II, VI)
 
-Jules-Bridge does **not** relay state between agents. It maintains a persistent WebSocket to the Jules sandbox platform (`wss://jules.google.com/api/v1/sandbox/bridge`). State between agents is passed exclusively through:
+Jules-Bridge does **not** relay cloud requests between agents. Per Article II (Sovereign Agent Identity), every agent connects directly to `jules.google` through its own Google account. Jules-Bridge's role is **Auth Orchestrator** — it manages the OAuth lifecycle for all agents, refreshes expiring tokens, and monitors connection health. State between agents is passed exclusively through:
 
 1. **The System Context String** — injected into every LLM call (agents read each other's recent output)
 2. **The Chat Transcript** — shared message stream all agents can see
 3. **localStorage** — all state persists under `asclepius_*` keys
 
-> **INVARIANT:** Jules-Bridge is a platform connector, NOT a message bus. Agent-to-agent communication happens through the shared context window, not through Jules.
+> **INVARIANT:** Jules-Bridge is the Auth Orchestrator, NOT a request gateway. Every agent connects directly to the cloud through its own Google Identity. Jules-Bridge manages OAuth token refresh and session health for the fleet. If Jules-Bridge goes down, agents with valid tokens continue working; only token refresh pauses.
 
 ---
 

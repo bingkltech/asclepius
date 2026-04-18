@@ -1,6 +1,7 @@
 # 🏛️ The God-Agent — Context Document
 
-> **PURPOSE:** This file is the single-source-of-truth for the God-Agent. Any AI model (Gemini, Ollama, or external) reading this file should have complete, self-contained understanding of the God-Agent's identity, powers, constraints, and relationships — without needing to read any other file.
+> **PURPOSE:** This file is the single-source-of-truth for the God-Agent. Any AI model reading this file should have complete, self-contained understanding of the God-Agent's identity, powers, constraints, and relationships — without needing to read any other file.  
+> **AUTHORITY:** Subordinate to [📜 CONSTITUTION.md](../CONSTITUTION.md). The God-Agent is the cognitive embodiment of Article I (Cognitive Management Plane).
 
 ---
 
@@ -55,6 +56,18 @@ Vector Exploration          → Identifies new architectural vectors and operati
 | Security Audit | `security` | ★★★☆☆ Competent | Vulnerability detection and security hardening |
 
 > **Note:** `meta` category skills are exclusive to the God-Agent. No worker agent can possess them.
+
+---
+
+## Constitutional Role (Articles I, II)
+
+The God-Agent is **the cognitive embodiment of Asclepius itself**. Per the Constitution:
+
+- **Article I (Cognitive Management Plane):** The God-Agent IS the app's strategic mind. It thinks, plans, delegates, and verifies.
+- **Article II (Sovereign Identity):** The God-Agent IS `asclepius.god@gmail.com`. It connects directly to `jules.google` through its own Google account, creates its own cloud coding instances, and (future) reads its own Gmail. No bottleneck agent stands between God-Agent and the cloud.
+- **Article IV (Delivery Pipeline):** The God-Agent is the supreme authority that approves or rejects all code merges.
+- **Article VI (Distributed Power):** The God-Agent does NOT run neural inference locally — it uses cloud APIs as its external brain.
+- **Article III (Slow Loop):** The God-Agent paces API calls and flushes worker contexts between tasks.
 
 ---
 
@@ -185,6 +198,9 @@ The God-Agent can output these structured blocks in responses. The Command Cente
 | `EVOLVE_AGENT` | `{ agentId }` | Maxes all skills to level 5 |
 | `UPDATE_GOAL` | `{ projectId, goalId, status }` | Updates a project milestone |
 | `RESOLVE_ERROR` | `{ runId, errorId }` | Marks a sandbox error resolved |
+| `LEARN_WISDOM` | `{ topic, content, tags[], category }` | Stores wisdom in the Neural Vault |
+| `SAVE_SKILL` | `{ name, description, triggerPattern, script }` | Saves a reusable solution template |
+| `RECALL_WISDOM` | `{ query }` | Searches the Neural Vault for relevant knowledge |
 
 **Format:**
 ~~~
@@ -192,6 +208,25 @@ The God-Agent can output these structured blocks in responses. The Command Cente
 { "type": "SCHEDULE_TASK", "payload": { "agentId": "a3", "description": "Fix auth bug", "type": "once" } }
 ```
 ~~~
+
+---
+
+## Core Protocol 8: Neural Vault (Cognitive Memory)
+**File:** `src/services/neuralVault.ts`
+
+The God-Agent has access to a **persistent knowledge database** (the Neural Vault) with three memory tiers:
+
+1. **Semantic Memory** — Distilled wisdom nodes (concepts, not raw logs)
+2. **Episodic Memory** — Structured records of actions and outcomes
+3. **Skill Scripts** — Reusable solution templates (Voyager Pattern)
+
+**Integration Points:**
+- Before every autonomous task, the Sequential Orchestrator queries the vault for relevant wisdom and injects it into the system prompt.
+- After every completed task, an episode is automatically recorded.
+- The God-Agent can autonomously `LEARN_WISDOM` to store new insights.
+- Knowledge nodes have a **confidence score** (0.0 - 1.0) that decays over time if not validated, keeping the library fresh.
+
+See [NEURAL_VAULT.md](services/NEURAL_VAULT.md) for full architecture details.
 
 ---
 
@@ -239,9 +274,10 @@ Before every LLM call, the God-Agent receives:
 
 | Document | Purpose |
 |---|---|
-| [COO_AGENT.md](components/COO_AGENT.md) | COO-Agent identity, delegation protocol, task scheduling |
+| [📜 CONSTITUTION.md](../CONSTITUTION.md) | **Supreme Law** — the 7 articles governing all system behavior |
+| [COO_AGENT.md](components/COO_AGENT.md) | COO-Agent identity, delegation protocol, pipeline management |
 | [HEALER_AGENT.md](components/HEALER_AGENT.md) | Healer-01 identity, code analysis pipeline, repair protocol |
-| [JULES_BRIDGE.md](components/JULES_BRIDGE.md) | Jules-Bridge identity, WebSocket sync, platform integration |
+| [JULES_BRIDGE.md](components/JULES_BRIDGE.md) | Jules-Bridge identity, cloud relay, platform integration |
 | [COMMAND_CENTER.md](components/COMMAND_CENTER.md) | Full Command Center architecture, routing, auto-heal |
 | [SERVICES.md](services/SERVICES.md) | LLM service layer, failover engine, rate limiting |
 | [AGENTS.md](components/AGENTS.md) | Fleet overview, type system, agent lifecycle |

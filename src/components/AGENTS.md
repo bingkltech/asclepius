@@ -1,6 +1,7 @@
 # 🤖 Agent Fleet — Context Document
 
 > **PURPOSE:** This file is the single-source-of-truth for the Asclepius Agent Fleet architecture. It provides the fleet overview, the shared type system, lifecycle mechanics, and links to individual agent context documents. Any AI model reading this file gains complete fleet awareness.
+> **AUTHORITY:** Subordinate to [📜 CONSTITUTION.md](../../CONSTITUTION.md). The fleet operates as a Cognitive Management Plane (Article I) with Persona-Driven Identity Isolation (Article II).
 
 ---
 
@@ -24,16 +25,27 @@
 
 > ⚠️ **Each agent has its own detailed context document.** This file covers fleet-level architecture only.
 
+### Fleet Constitutional Roles
+
+| Agent | Identity (Gmail) | Constitutional Role |
+|---|---|---|
+| **God-Agent** | `asclepius.god@gmail.com` | Cognitive Embodiment of Asclepius (Article I). Supreme authority. Direct cloud access. |
+| **COO-Agent** | `asclepius.coo@gmail.com` | Pipeline Manager (Article IV). Enforces the Slow Loop (Article III). Direct cloud access. |
+| **Jules-Bridge** | `asclepius.bridge@gmail.com` | Auth Orchestrator (Article II/VI). Manages OAuth lifecycle for all agents. |
+| **Healer-01** | `asclepius.healer@gmail.com` | Sandbox Repair Specialist (Article V). Self-healing loop. Direct cloud access. |
+
+> **Key Insight (Article II):** Every agent IS its own Google Identity and connects directly to `jules.google` through its own account. Jules-Bridge does NOT relay cloud requests — it manages auth sessions for the fleet.
+
 ---
 
 ## Agent Registry (Quick Reference)
 
-| Agent | ID | Model | Provider | Budget | Protected | Context Doc |
-|---|---|---|---|---|---|---|
-| **God-Agent** | `god` | `gemini-3.1-pro-preview` | Gemini (→Ollama) | 500K/day | ✅ | [GOD_AGENT.md](../GOD_AGENT.md) |
-| **COO-Agent** | `coo` | `gemma4` | Ollama | 200K/day | ✅ | [COO_AGENT.md](COO_AGENT.md) |
-| **Jules-Bridge** | `a2` | `gemini-3.1-flash-lite-preview` | Gemini | 100K/day | ❌ | [JULES_BRIDGE.md](JULES_BRIDGE.md) |
-| **Healer-01** | `a3` | `gemini-3.1-pro-preview` | Gemini | 200K/day | ❌ | [HEALER_AGENT.md](HEALER_AGENT.md) |
+| Agent | ID | Model | Provider | Budget | Protected | Fleet Role | Context Doc |
+|---|---|---|---|---|---|---|---|
+| **God-Agent** | `god` | `gemini-3.1-pro-preview` | Gemini (→Ollama) | 500K/day | ✅ | Strategic Mind | [GOD_AGENT.md](../GOD_AGENT.md) |
+| **COO-Agent** | `coo` | `gemma4` | Ollama | 200K/day | ✅ | Pipeline Manager | [COO_AGENT.md](COO_AGENT.md) |
+| **Jules-Bridge** | `a2` | `gemini-3.1-flash-lite-preview` | Gemini | 100K/day | ❌ | Auth Orchestrator | [JULES_BRIDGE.md](JULES_BRIDGE.md) |
+| **Healer-01** | `a3` | `gemini-3.1-pro-preview` | Gemini | 200K/day | ❌ | Sandbox Repair | [HEALER_AGENT.md](HEALER_AGENT.md) |
 
 > **Dynamically spawned agents** (via God-Agent's `SPAWN_AGENT` action) do not have pre-written context docs. Their identity is defined at spawn time.
 
@@ -167,7 +179,8 @@ Add a new entry to the array. The agent auto-appears in Dashboard, Agents tab, C
 
 For detailed context on each agent (designed to be fed directly to an AI model):
 
-- [GOD_AGENT.md](../GOD_AGENT.md) — God-Agent: Apex authority, self-healing, dual-core routing
-- [COO_AGENT.md](COO_AGENT.md) — COO-Agent: Operations, delegation, task decomposition
-- [HEALER_AGENT.md](HEALER_AGENT.md) — Healer-01: Code analysis, repair, Sandbox integration
-- [JULES_BRIDGE.md](JULES_BRIDGE.md) — Jules-Bridge: WebSocket sync, platform connector
+- [📜 CONSTITUTION.md](../../CONSTITUTION.md) — **Supreme Law** governing all agent behavior
+- [GOD_AGENT.md](../GOD_AGENT.md) — God-Agent: Cognitive embodiment, strategic mind, dual-core routing
+- [COO_AGENT.md](COO_AGENT.md) — COO-Agent: Pipeline management, delegation, Slow Loop enforcement
+- [HEALER_AGENT.md](HEALER_AGENT.md) — Healer-01: Code analysis, Sandbox repair, self-healing loop
+- [JULES_BRIDGE.md](JULES_BRIDGE.md) — Jules-Bridge: Cloud relay, distributed compute, Persona multiplexing

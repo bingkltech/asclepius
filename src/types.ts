@@ -175,6 +175,15 @@ export function awardAgentXP(
   };
 }
 
+// ─── Golden Path: Git Skills (Phase 4) ───
+export const CORE_GIT_SKILLS = {
+  create_branch: createSkill("Git Branching", "operations", 4, "Create isolated branches for new tasks"),
+  commit: createSkill("Git Commit", "operations", 4, "Commit code changes with sovereign identity"),
+  push: createSkill("Git Push", "operations", 4, "Push branches to remote repository"),
+  pull: createSkill("Git Pull", "operations", 4, "Pull latest changes from remote repository"),
+  merge: createSkill("Git Merge", "operations", 5, "Review and merge branches into main (COO only)"),
+};
+
 // ─── Budget System ───
 export interface AgentBudget {
   dailyTokenLimit: number;
@@ -209,19 +218,62 @@ export interface Delegation {
   createdAt: string;
 }
 
-// ─── Agent Identity & Credentials ───
-// Each agent can have its own Google identity, API key, and model preferences.
-// This enables true workforce isolation: per-agent quota, per-agent failover.
+// ─── Agent Identity & Credentials (Constitution Article II: Sovereign Agent Identity) ───
+// Each agent IS a Google Identity. The agent and the account are the same entity.
+// Once authenticated via OAuth, the agent gains sovereign access to the Google ecosystem.
+export type AuthStatus = 'unauthenticated' | 'authenticating' | 'authenticated' | 'expired' | 'error';
+
+export interface GoogleIdentity {
+  accessToken?: string;           // OAuth access token
+  refreshToken?: string;          // For autonomous token renewal
+  expiresAt?: number;             // Token expiry timestamp (ms since epoch)
+  scopes: string[];               // Granted scopes: ['jules', 'gmail', 'drive', etc.]
+  quotaUsed: number;              // Daily API calls consumed under this identity
+  lastRefreshedAt?: string;       // ISO timestamp of last token refresh
+}
+
+export interface GitHubIdentity {
+  token?: string;                 // PAT or OAuth token for gh CLI
+  username?: string;              // GitHub username linked to this agent
+  scope: string[];                // e.g., ["repo", "read:user"]
+  isConnected: boolean;           // Whether GitHub auth is active
+}
+
 export interface AgentCredentials {
-  email?: string;              // Gmail identity (e.g., "asclepius.god.agent@gmail.com")
-  geminiApiKey?: string;       // This agent's personal Gemini API key
-  ollamaBaseUrl?: string;      // Can point to different Ollama instances/ports
-  ollamaModel?: string;        // Preferred local model for this agent
-  geminiModel?: string;        // Preferred cloud model for this agent
-  julesSessionId?: string;     // This agent's personal Jules sandbox session
-  quotaUsed?: number;          // Per-agent daily usage tracker
-  quotaLimit?: number;         // Per-agent daily limit (default: 1500 free tier)
-  lastQuotaReset?: string;     // ISO timestamp of last quota reset
+  email?: string;                   // The agent's Gmail identity (e.g., "asclepius.god.agent@gmail.com")
+  isAuthenticated: boolean;         // Whether full Google OAuth has been completed
+  authStatus: AuthStatus;           // Current authentication state
+  authenticatedAt?: string;         // ISO timestamp of last successful OAuth
+  google: GoogleIdentity;           // Google ecosystem access (jules, gmail, drive)
+  github: GitHubIdentity;           // GitHub ecosystem access (repos, PRs, CLI)
+  geminiApiKey?: string;            // This agent's personal Gemini API key
+  ollamaBaseUrl?: string;           // Can point to different Ollama instances/ports
+  ollamaModel?: string;             // Preferred local model for this agent
+  geminiModel?: string;             // Preferred cloud model for this agent
+  julesSessionId?: string;          // This agent's personal Jules sandbox session
+  quotaUsed?: number;               // Per-agent daily usage tracker (backward compat)
+  quotaLimit?: number;              // Per-agent daily limit (default: 1500 free tier)
+  lastQuotaReset?: string;          // ISO timestamp of last quota reset
+}
+
+// Factory function for creating default credentials
+export function createDefaultCredentials(email?: string): AgentCredentials {
+  return {
+    email,
+    isAuthenticated: false,
+    authStatus: 'unauthenticated',
+    google: {
+      scopes: [],
+      quotaUsed: 0,
+    },
+    github: {
+      scope: [],
+      isConnected: false,
+    },
+    quotaUsed: 0,
+    quotaLimit: 1500,
+    lastQuotaReset: new Date().toISOString(),
+  };
 }
 
 // ─── Core Agent Interface ───
@@ -244,6 +296,7 @@ export interface Agent {
   credentials?: AgentCredentials; // Per-agent identity, API keys, and model prefs
   createdBy: 'system' | 'god'; // Who spawned this agent
   isProtected: boolean;      // Cannot be terminated (God, COO)
+  activeBranch?: string;       // Current Git branch this agent is working on
   delegations?: Delegation[];
 }
 
@@ -267,6 +320,7 @@ export interface Project {
   id: string;
   name: string;
   description: string;       // The README / what this project IS
+  path: string;              // Local filesystem path for Git operations
   goals: ProjectGoal[];      // Measurable milestones
   githubUrl: string;         // Repo coordination point
   status: ProjectStatus;
@@ -296,7 +350,7 @@ export interface CodeAnalysis {
 }
 
 // ─── LLM Provider ───
-export type LLMProvider = 'gemini' | 'ollama';
+export type LLMProvider = 'gemini' | 'ollama' | 'auto';
 
 export interface LLMUsageStats {
   requestsToday: number;
@@ -362,4 +416,84 @@ export interface SandboxRun {
   errors: SandboxError[];
   createdAt: string;
   resolvedAt?: string;
+}
+
+// ─── Neural Vault (God-Agent Knowledge System) ───
+
+export type KnowledgeCategory = 'architecture' | 'bugfix' | 'pattern' | 'protocol' | 'insight';
+
+/**
+ * KnowledgeNode — A single "Wisdom Artifact" in the God-Agent's Semantic Memory.
+ * 
+ * This is Layer 3 of the Tiered Memory system. It stores distilled concepts,
+ * not raw logs. Each node represents a reusable piece of understanding.
+ * 
+ * Example: Instead of storing 50 logs about CORS errors, the God-Agent
+ * creates one KnowledgeNode: "How to solve CORS in Vite via server proxy."
+ */
+export interface KnowledgeNode {
+  id: string;
+  topic: string;              // "Vite Proxy Architecture"
+  content: string;            // The actual wisdom (markdown)
+  tags: string[];             // ["vite", "proxy", "cors", "jules"]
+  category: KnowledgeCategory;
+  confidence: number;         // 0.0 - 1.0 (decays over time if not validated)
+  connections: string[];      // IDs of related nodes (neural graph)
+  createdBy: string;          // "god" | "coo" | "healer-01"
+  createdAt: string;          // ISO timestamp
+  lastAccessedAt: string;     // Updated on every retrieval
+  accessCount: number;        // How often this wisdom was used
+  validated: boolean;         // Has this been confirmed correct by outcome?
+}
+
+/**
+ * EpisodicEvent — A single event in the God-Agent's Episodic Memory.
+ * 
+ * This is Layer 2 of the Tiered Memory system. It stores structured records
+ * of actions taken and their outcomes. Used for pattern recognition and 
+ * training data for the God-Agent's decision-making.
+ */
+export interface EpisodicEvent {
+  id: string;
+  agentId: string;            // Who performed the action
+  action: string;             // What was done
+  context: string;            // Why it was done (task description, error context)
+  outcome: 'success' | 'failure' | 'partial';
+  lessonsLearned: string;     // What was extracted from the outcome
+  knowledgeNodeId?: string;   // Link to wisdom generated from this episode
+  relatedEpisodes?: string[]; // Links to related past episodes
+  timestamp: string;
+}
+
+/**
+ * SkillScript — A reusable solution template (Voyager Pattern).
+ * 
+ * When the God-Agent solves a problem, it can generate a SkillScript —
+ * a template that can be automatically re-applied when a similar problem
+ * is detected. This is how the agent "trains" without retraining weights.
+ */
+export interface SkillScript {
+  id: string;
+  name: string;               // "fix-cors-proxy"
+  description: string;        // "Resolves CORS by adding Vite server proxy"
+  triggerPattern: string;     // Keywords/patterns that activate this script
+  script: string;             // The actual solution template (code/instructions)
+  successRate: number;        // % of times this worked (0-100)
+  timesUsed: number;
+  createdBy: string;
+  createdAt: string;
+  lastUsedAt?: string;
+}
+
+/**
+ * NeuralVaultStats — Aggregated stats for Dashboard display.
+ */
+export interface NeuralVaultStats {
+  totalKnowledge: number;
+  totalEpisodes: number;
+  totalSkillScripts: number;
+  avgConfidence: number;
+  topCategories: { category: KnowledgeCategory; count: number }[];
+  lastLearnedAt: string | null;
+  mostAccessedTopic: string | null;
 }

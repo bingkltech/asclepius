@@ -45,6 +45,7 @@ import {
   Shield,
   ChevronDown,
   ChevronUp,
+  GitBranch,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { ChatMessage } from "@/src/types";
@@ -521,6 +522,120 @@ export const AgentCard: React.FC<AgentCardProps> = ({
             </div>
           )}
         </div>
+
+        {/* ─── Sovereign Identity Row (Constitution Article II) ─── */}
+        {agent.credentials?.email && (
+          <div className="px-4 pb-3">
+            <div className="rounded-lg bg-secondary/20 border border-border/30 px-3 py-2">
+              {/* Gmail Identity */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  {/* Auth status indicator dot */}
+                  <div className="relative flex h-2.5 w-2.5 shrink-0">
+                    {agent.credentials.authStatus === "authenticated" && (
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-40" />
+                    )}
+                    <span
+                      className={cn(
+                        "relative inline-flex rounded-full h-2.5 w-2.5",
+                        agent.credentials.authStatus === "authenticated"
+                          ? "bg-emerald-400"
+                          : agent.credentials.authStatus === "authenticating"
+                          ? "bg-amber-400 animate-pulse"
+                          : agent.credentials.authStatus === "expired"
+                          ? "bg-amber-500"
+                          : agent.credentials.authStatus === "error"
+                          ? "bg-rose-500"
+                          : "bg-zinc-500"
+                      )}
+                    />
+                  </div>
+                  {/* Email */}
+                  <span className="text-[10px] font-mono text-muted-foreground/70 truncate">
+                    {agent.credentials.email}
+                  </span>
+                </div>
+                {/* Auth status badge */}
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "text-[7px] h-4 px-1.5 border shrink-0 font-semibold uppercase tracking-wider",
+                    agent.credentials.authStatus === "authenticated"
+                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                      : agent.credentials.authStatus === "authenticating"
+                      ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                      : agent.credentials.authStatus === "expired"
+                      ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                      : agent.credentials.authStatus === "error"
+                      ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                      : "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
+                  )}
+                >
+                  {agent.credentials.authStatus === "authenticated"
+                    ? "✓ SOVEREIGN"
+                    : agent.credentials.authStatus === "authenticating"
+                    ? "◌ CONNECTING"
+                    : agent.credentials.authStatus === "expired"
+                    ? "⚠ EXPIRED"
+                    : agent.credentials.authStatus === "error"
+                    ? "✕ AUTH ERROR"
+                    : "○ NOT AUTH"}
+                </Badge>
+              </div>
+              {/* Service connections row */}
+              <div className="flex items-center gap-2 mt-1.5">
+                {/* Google services */}
+                <div className="flex items-center gap-1">
+                  <svg viewBox="0 0 16 16" className="w-3 h-3 shrink-0">
+                    <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1" className={agent.credentials.isAuthenticated ? "text-emerald-400/60" : "text-zinc-500/40"} />
+                    <text x="8" y="11" textAnchor="middle" fill="currentColor" fontSize="8" fontWeight="bold" className={agent.credentials.isAuthenticated ? "text-emerald-400" : "text-zinc-500"}>G</text>
+                  </svg>
+                  <span className={cn("text-[8px] font-mono", agent.credentials.isAuthenticated ? "text-emerald-400/60" : "text-zinc-500/40")}>
+                    Google
+                  </span>
+                </div>
+                {/* GitHub */}
+                <div className="flex items-center gap-1">
+                  <svg viewBox="0 0 16 16" className="w-3 h-3 shrink-0">
+                    <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1" className={agent.credentials.github?.isConnected ? "text-emerald-400/60" : "text-zinc-500/40"} />
+                    <text x="8" y="11" textAnchor="middle" fill="currentColor" fontSize="8" fontWeight="bold" className={agent.credentials.github?.isConnected ? "text-emerald-400" : "text-zinc-500"}>⌥</text>
+                  </svg>
+                  <span className={cn("text-[8px] font-mono", agent.credentials.github?.isConnected ? "text-emerald-400/60" : "text-zinc-500/40")}>
+                    GitHub
+                  </span>
+                </div>
+                {/* Jules */}
+                <div className="flex items-center gap-1">
+                  <svg viewBox="0 0 16 16" className="w-3 h-3 shrink-0">
+                    <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1" className={agent.julesConfig?.status === "connected" ? "text-emerald-400/60" : "text-zinc-500/40"} />
+                    <text x="8" y="11" textAnchor="middle" fill="currentColor" fontSize="8" fontWeight="bold" className={agent.julesConfig?.status === "connected" ? "text-emerald-400" : "text-zinc-500"}>J</text>
+                  </svg>
+                  <span className={cn("text-[8px] font-mono", agent.julesConfig?.status === "connected" ? "text-emerald-400/60" : "text-zinc-500/40")}>
+                    Jules
+                  </span>
+                </div>
+                {/* Active Branch */}
+                {agent.activeBranch && (
+                  <>
+                    <div className="w-[1px] h-3 bg-border/50 mx-1" />
+                    <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20">
+                      <GitBranch className="w-3 h-3 text-primary" />
+                      <span className="text-[8px] font-mono text-primary font-medium tracking-wide">
+                        {agent.activeBranch}
+                      </span>
+                    </div>
+                  </>
+                )}
+                {/* Scopes count */}
+                {agent.credentials.google?.scopes && agent.credentials.google.scopes.length > 0 && (
+                  <Badge variant="outline" className="text-[7px] h-3.5 px-1 ml-auto bg-violet-500/10 text-violet-400 border-violet-500/20">
+                    {agent.credentials.google.scopes.length} scopes
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ─── Skills Section ─── */}
         <div className="px-4 pb-3">

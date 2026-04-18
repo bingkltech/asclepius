@@ -1,10 +1,11 @@
 # 🎯 The Lookback-Forward Execution Strategy
 
-> *"Look back and read the whole context. Understand the future in order to move. Granulize all tasks. Move forward."*
+> *"Look back and read the whole context. Understand the future in order to move. Granulize all tasks. Move forward."*  
+> **AUTHORITY:** Subordinate to [📜 CONSTITUTION.md](../CONSTITUTION.md). This document is the detailed specification of Constitution Article VII (Lookback-Forward Doctrine).
 
 ## Philosophy
 
-The Lookback-Forward Strategy is the **operating doctrine** of Asclepius. It is not merely a feature or a technique — it is the fundamental way every agent, from the God-Agent down to the smallest worker, approaches every task.
+The Lookback-Forward Strategy is the **operating doctrine** of Asclepius. It is not merely a feature or a technique — it is the fundamental way every agent, from the God-Agent down to the smallest worker, approaches every task. It is codified as **Article VII** of the [Asclepius Constitution](../CONSTITUTION.md).
 
 It emerges from a simple observation: **most failures in AI agent systems stem from insufficient context, premature action, or vague task definitions.** The Lookback-Forward Strategy eliminates all three.
 
@@ -298,6 +299,7 @@ When building new features or agents for Asclepius, always follow this pattern:
 
 ## Related Documentation
 
+- [📜 CONSTITUTION.md](../CONSTITUTION.md) — **Supreme Law** — Article VII codifies this doctrine as immutable law
 - [God-Agent](../src/GOD_AGENT.md) — The supreme agent that embodies this strategy
 - [Command Center](../src/components/COMMAND_CENTER.md) — Where the Lookback phase is constructed
 - [Agent Fleet](../src/components/AGENTS.md) — The agents that execute the Forward phase

@@ -1,19 +1,65 @@
 # ⚕️ Asclepius — Autonomous AI Agent Orchestrator
 
-> *An autonomous AI agent workforce where a supreme God-Agent commands, spawns, heals, and evolves an entire fleet of specialized workers — each with their own Google identity, API quota, and cognitive model.*
+> *A Cognitive Management Plane that orchestrates a fleet of cloud-powered AI agents — each with their own identity, API quota, and cognitive model — to autonomously deliver verified software through a closed-loop pipeline.*
 
-**Version:** v2.9 · **Architecture:** Hierarchical Autonomous Workforce · **Last Audit:** 2026-04-17
+**Version:** v3.0 · **Architecture:** Cognitive Management Plane · **Last Audit:** 2026-04-18
+
+> [!IMPORTANT]
+> **📜 [Read the Constitution](CONSTITUTION.md) first.** The Constitution is the supreme architectural law of this system. All code, features, and agents must comply with its 7 articles.
 
 ---
 
-## 🧬 Core Philosophy — How Agents Interact
+## 🧬 Core Philosophy
 
-Asclepius is not a chatbot with multiple personas. It is a **hierarchical workforce** where each agent:
-- Has its own **Gmail account** and **Gemini API key** (individual free-tier quota)
-- Runs its own **cognitive model** (Pro for architects, Flash for connectors, local Gemma for ops)
-- Cannot be confused with another agent — each has distinct authority and constraints
+### What Asclepius IS
 
-### The Orchestration Hierarchy
+Asclepius is a **Cognitive Management Plane** — it embodies the strategic mind (the God-Agent) while offloading all neural inference to cloud APIs (`jules.google`, Google Gemini). The app thinks, plans, delegates, and verifies. The cloud performs the raw cognitive labor.
+
+### What Asclepius is NOT
+
+- ❌ A chatbot with multiple personas
+- ❌ A local AI inference engine
+- ❌ A monolithic code generator
+
+### The Three Truths (from the [Constitution](CONSTITUTION.md))
+
+1. **The app is the mind; the cloud is the muscle.** (Article I)
+2. **Every agent IS a Google Identity — sovereign and self-authenticating.** (Article II)
+3. **Stability over raw speed. Always.** (Article III)
+
+---
+
+## 🏗️ The Autonomous Delivery Pipeline
+
+The defining feature of Asclepius: a closed-loop pipeline where code flows from task definition to verified production merge with zero manual intervention.
+
+```
+COO creates task
+    │
+    ▼
+Worker Agent receives task ──► Sends to jules.google (Cloud)
+    │                                    │
+    │                          Jules generates code
+    │                                    │
+    ▼                                    ▼
+Worker writes files locally ◄── Code returned from cloud
+    │
+    ▼
+Worker creates PR branch → pushes to GitHub
+    │
+    ▼
+COO pulls branch into Sandbox
+    │
+    ├── PASS → COO merges to main → Next task
+    │
+    └── FAIL → COO rejects PR → Creates fix task → Loop back
+```
+
+> See [Constitution Article IV](CONSTITUTION.md#article-iv--the-autonomous-delivery-pipeline-coo--agent--jules--pr--sandbox--main) for the full pipeline specification.
+
+---
+
+## 👑 The Orchestration Hierarchy
 
 ```
    ┌──────────────────────────────────────────────────────┐
@@ -24,19 +70,18 @@ Asclepius is not a chatbot with multiple personas. It is a **hierarchical workfo
                            ▼
    ┌──────────────────────────────────────────────────────┐
    │                   GOD-AGENT 👑                        │
-   │  Brain: gemini-3.1-pro-preview                       │
-   │  Fallback: gemma4:e4b (local)                        │
+   │  The Cognitive Embodiment of Asclepius                │
+   │  Brain: gemini-3.1-pro (cloud) / gemma4 (fallback)   │
    │  Authority: Absolute. Can /spawn, /terminate, /evolve│
-   │  Lifecycle: Boot → Sweep → Delegate → Hibernate      │
-   │  Wakes on: Error interrupt OR 5-hour timer            │
+   │  Role: Strategic planning, context brokering, QA      │
    └────────┬────────────────┬────────────────┬───────────┘
             │ Delegation     │ Platform Sync  │ Error Route
    ┌────────▼──────┐  ┌─────▼────────┐  ┌───▼──────────┐
    │  COO-Agent    │  │ Jules-Bridge  │  │  Healer-01   │
    │  gemma4 local │  │ flash-lite    │  │ gemini-pro   │
-   │  "Always On"  │  │ "Always Sync" │  │ "On Demand"  │
-   │  🛡️ Protected  │  │ Budget: 100K  │  │ /analyze,/fix│
-   │  Orchestrate  │  │ WSS Connect   │  │ Code Repair  │
+   │  "Always On"  │  │ Auth Orch.    │  │ "On Demand"  │
+   │  🛡️ Protected  │  │ Token Mgmt   │  │ /analyze,/fix│
+   │  Pipeline Mgr │  │ Session Hlth  │  │ Code Repair  │
    └───────────────┘  └──────────────┘  └──────────────┘
 ```
 
@@ -50,7 +95,35 @@ Agents do **not** talk to each other directly. Communication happens through thr
 | **Hive-Mind Transcript** | The shared chat stream in CommandCenter — agents can read each other's recent outputs because the transcript is included in context. |
 | **JSON Action Side-Effects** | Agents output `json:action` blocks that the system executes silently (`SPAWN_AGENT`, `SCHEDULE_TASK`, `WRITE_FILE`, `EVOLVE_AGENT`). These mutations appear in the next agent's context window. |
 
-> **Key Insight:** Jules-Bridge is a platform connector to the local file system and sandbox — agents can now write files directly to disk via the `/api/jules/write` endpoint.
+> **Key Insight:** Every agent connects directly to the cloud through its own Google Identity (Article II). Jules-Bridge is the Auth Orchestrator that keeps all sessions alive, not a gateway bottleneck.
+
+---
+
+## 🔑 Sovereign Agent Identity System
+
+Each agent **IS** a Google Identity — not just a credential holder (Constitution Article II):
+
+| Agent | Identity (Gmail) | Model | Cloud Access | Free Quota |
+|---|---|---|---|---|
+| God-Agent | `asclepius.god@gmail.com` | gemini-3.1-pro | jules.google + Gemini API | 1,500/day |
+| COO-Agent | `asclepius.coo@gmail.com` | gemma4 (local) | jules.google + Ollama | 1,500/day |
+| Jules-Bridge | `asclepius.bridge@gmail.com` | flash-lite | Auth Orchestrator (monitors all sessions) | 1,500/day |
+| Healer-01 | `asclepius.healer@gmail.com` | gemini-3.1-pro | jules.google + Gemini API | 1,500/day |
+
+**Total fleet capacity: 6,000 free requests/day** (scales linearly with each new agent/account).
+
+Once authenticated via OAuth, each agent can autonomously:
+- Create its own `jules.google` coding instances
+- (Future) Read its own Gmail inbox
+- (Future) Access its own Google Drive
+- Refresh its own tokens when they expire
+
+### One-Time Auth Flow
+```
+Settings → Agent Credentials → "Authenticate" → Google OAuth → Tokens stored in encrypted vault
+```
+
+Configure in: Agent Card → ⚙️ Settings → 🔑 Credentials tab.
 
 ---
 
@@ -60,7 +133,7 @@ Agents do **not** talk to each other directly. Communication happens through thr
 
 `avgHealth = average of all agents' health field`
 
-The `health` field initializes at 100 and is now **dynamically updated**:
+The `health` field initializes at 100 and is **dynamically updated**:
 - **Degrades** automatically when the agent misses heartbeats (status: `degraded`, `unresponsive`, or `dead`).
 - **Passively Regenerates** by +5 HP every 30 seconds as long as the agent is alive and not paused.
 - **Auto-Recovery:** Dead agents are caught by a 15-second watchdog loop that resets their heartbeat and partially restores their health, generating a system alert.
@@ -84,29 +157,7 @@ These are **simulated random walks** (±5 CPU, ±25 MB, ±10ms per 8-second tick
 
 ---
 
-## 🔑 Per-Agent Identity System (v2.8)
-
-Each agent can have its own Google identity and API credentials:
-
-| Agent | Email | API Key | Model | Free Quota |
-|---|---|---|---|---|
-| God-Agent | `asclepius.god@gmail.com` | `AIza...GOD` | gemini-3.1-pro | 1,500/day |
-| COO-Agent | `asclepius.coo@gmail.com` | `AIza...COO` | gemma4 (local) | 1,500/day |
-| Jules-Bridge | `asclepius.bridge@gmail.com` | `AIza...BRG` | flash-lite | 1,500/day |
-| Healer-01 | `asclepius.healer@gmail.com` | `AIza...HLR` | gemini-3.1-pro | 1,500/day |
-
-**Total fleet capacity: 6,000 free requests/day** (vs 1,500 with shared key).
-
-Configure in: Agent Card → ⚙️ Settings → 🔑 Credentials tab.
-
-### Credential Resolution Priority
-```
-Agent's personal API key → Agent's model field → Global settings (fallback)
-```
-
----
-
-## ⚡ Skills & Autonomous Evolution (v2.9)
+## ⚡ Skills & Autonomous Evolution
 
 | Level | Name | XP to Next | Category Colors |
 |---|---|---|---|
@@ -120,16 +171,18 @@ Agent's personal API key → Agent's model field → Global settings (fallback)
 
 ---
 
-## 🎯 Lookback-Forward Execution Strategy
+## 🎯 Lookback-Forward Execution Strategy (Constitution Article VII)
 
 ```
-LOOKBACK    → Read full context (logs + history + fleet + projects)
+LOOKBACK    → Read full context (logs + history + fleet + projects + sandbox)
 COMPREHEND  → Map the landscape, understand what needs to happen
 GRANULIZE   → Decompose into atomic, actionable tasks
 FORWARD     → Execute with precision, then loop back
 ```
 
-Every agent call receives: fleet status, active projects, sandbox health, last 15 logs, and chat transcript.
+Every agent call receives: fleet status, active projects, sandbox health, recent logs, and chat transcript.
+
+> See [STRATEGY.md](docs/STRATEGY.md) for the full doctrine.
 
 ---
 
@@ -158,9 +211,10 @@ Every agent call receives: fleet status, active projects, sandbox health, last 1
 | Frontend | React 19, Vite, TypeScript |
 | Styling | Tailwind CSS 4, shadcn/ui |
 | Animation | Motion (Framer Motion) |
-| AI (Cloud) | Google Gemini API (per-agent keys) |
+| AI (Cloud) | Google Gemini API (per-agent keys), jules.google |
 | AI (Local) | Ollama (per-agent models) |
 | Charts | Custom SVG sparklines |
+| Persistence | localStorage (encrypted AES-GCM for credentials) |
 
 ---
 
@@ -181,6 +235,7 @@ Set Gemini API key in: ⚙️ Settings → API Key, or per-agent in Agent Config
 
 ```
 asclepius/
+├── CONSTITUTION.md               ← 📜 SUPREME LAW — 7 immutable articles
 ├── CONTEXT_MAP.md                ← LIVING CONTEXT MAP — the Amnesia Guard
 ├── README.md                     ← This file
 ├── src/
@@ -211,19 +266,20 @@ asclepius/
 
 ---
 
-## 📚 Documentation Index
+## 📚 Documentation Hierarchy (Constitution Supremacy)
 
-| Document | Purpose |
-|---|---|
-| [CONTEXT_MAP.md](CONTEXT_MAP.md) | **The Amnesia Guard** — deep-scan architecture, invariants, context leaks, scaling strategy |
-| [GOD_AGENT.md](src/GOD_AGENT.md) | God-Agent identity, 11 skills, dual-core routing, 7 protocols |
-| [COO_AGENT.md](src/components/COO_AGENT.md) | COO-Agent delegation protocol, task decomposition |
-| [HEALER_AGENT.md](src/components/HEALER_AGENT.md) | Healer-01 analysis pipeline, Sandbox integration |
-| [JULES_BRIDGE.md](src/components/JULES_BRIDGE.md) | Jules-Bridge WebSocket sync |
-| [AGENTS.md](src/components/AGENTS.md) | Fleet overview, type system, heartbeats, skills, budgets |
-| [COMMAND_CENTER.md](src/components/COMMAND_CENTER.md) | Terminal UI, routing, auto-heal, JSON actions |
-| [SERVICES.md](src/services/SERVICES.md) | LLM backends, failover engine |
-| [STRATEGY.md](docs/STRATEGY.md) | Lookback-Forward execution doctrine |
+| Document | Purpose | Authority |
+|---|---|---|
+| [📜 CONSTITUTION.md](CONSTITUTION.md) | **Supreme Law** — 7 immutable architectural articles | 👑 Supreme |
+| [CONTEXT_MAP.md](CONTEXT_MAP.md) | **The Amnesia Guard** — deep-scan architecture, invariants, context leaks, scaling strategy | Implementation |
+| [GOD_AGENT.md](src/GOD_AGENT.md) | God-Agent identity, 11 skills, dual-core routing, 8 protocols | Agent Spec |
+| [COO_AGENT.md](src/components/COO_AGENT.md) | COO-Agent delegation protocol, pipeline management | Agent Spec |
+| [HEALER_AGENT.md](src/components/HEALER_AGENT.md) | Healer-01 analysis pipeline, Sandbox integration | Agent Spec |
+| [JULES_BRIDGE.md](src/components/JULES_BRIDGE.md) | Jules-Bridge cloud relay, WebSocket sync | Agent Spec |
+| [AGENTS.md](src/components/AGENTS.md) | Fleet overview, type system, heartbeats, skills, budgets | Fleet Spec |
+| [COMMAND_CENTER.md](src/components/COMMAND_CENTER.md) | Terminal UI, routing, auto-heal, JSON actions | Component Spec |
+| [SERVICES.md](src/services/SERVICES.md) | LLM backends, failover engine, distributed compute | Service Spec |
+| [STRATEGY.md](docs/STRATEGY.md) | Lookback-Forward execution doctrine | Doctrine |
 
 ---
 

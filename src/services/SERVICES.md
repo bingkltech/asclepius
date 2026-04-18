@@ -1,6 +1,7 @@
 # 🧠 AI Services Layer
 
-> _The dual-brain LLM abstraction that powers every agent in Asclepius._
+> _The dual-brain LLM abstraction that powers every agent in Asclepius._  
+> **AUTHORITY:** Subordinate to [📜 CONSTITUTION.md](../../CONSTITUTION.md). This layer implements Article VI (Distributed Power, Local Management) — all neural inference is offloaded to cloud APIs, while the local app manages only the request lifecycle.
 
 ## Architecture
 
@@ -25,11 +26,11 @@
     └─────────┘    └───────────┘
 ```
 
-The services layer implements a **three-tier abstraction**:
+The services layer implements a **three-tier abstraction** (per Constitution Article VI: "The compute is outside. The intelligence is here."):
 
-1. **`llm.ts`** — The unified facade. All components call this. It decides which backend to use.
-2. **`gemini.ts`** — Direct integration with the Google Gemini API via `@google/genai` SDK.
-3. **`ollama.ts`** — HTTP client for local Ollama instances.
+1. **`llm.ts`** — The unified facade. All components call this. It decides which backend to use, enforces the Slow Loop pacing (Article III), and routes credentials per agent's Sovereign Identity (Article II). Each agent connects directly to the cloud through its own Google account.
+2. **`gemini.ts`** — Direct integration with the Google Gemini API via `@google/genai` SDK. Cloud inference.
+3. **`ollama.ts`** — HTTP client for local Ollama instances. Fallback when cloud is unavailable (Article VI graceful degradation).
 
 ---
 
@@ -234,6 +235,7 @@ interface LLMUsageStats {
 
 ## Related Documentation
 
+- [📜 CONSTITUTION.md](../../CONSTITUTION.md) — **Supreme Law** — Article VI governs the distributed compute model
 - [God-Agent](../GOD_AGENT.md) — The primary consumer of the LLM layer
 - [Command Center](../components/COMMAND_CENTER.md) — Where chat responses are displayed
 - [Agent Fleet](../components/AGENTS.md) — All agents that use these services

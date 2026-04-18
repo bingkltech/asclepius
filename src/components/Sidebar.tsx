@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Zap,
   FolderGit2,
+  Brain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ const menuItems = [
   { id: "command", label: "Command Center", icon: TerminalSquare },
   { id: "scheduler", label: "Task Scheduler", icon: Clock },
   { id: "sandbox", label: "Sandbox", icon: Boxes },
+  { id: "chronicle", label: "Chronicle", icon: Brain },
   { id: "logs", label: "System Logs", icon: Terminal },
   { id: "settings", label: "Settings", icon: Settings },
 ];

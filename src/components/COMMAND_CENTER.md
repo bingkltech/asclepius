@@ -1,10 +1,11 @@
 # 📡 Command Center
 
-> *Military-grade terminal interface for direct human-to-agent communication.*
+> *The primary interface of the Cognitive Management Plane — where the Human Operator communicates with the AI agent fleet.*  
+> **AUTHORITY:** Subordinate to [📜 CONSTITUTION.md](../../CONSTITUTION.md). The Command Center implements Article VII (Lookback-Forward Doctrine) through context construction and Article I (Cognitive Management Plane) through cloud-delegated inference.
 
 ## Overview
 
-The Command Center is the **primary interaction surface** between the human operator and the AI agent fleet. It presents a terminal-style chat interface with a scanline CRT effect, real-time message streaming, and full Markdown rendering.
+The Command Center is the **primary interaction surface** between the human operator and the AI agent fleet. It embodies the Cognitive Management Plane (Constitution Article I) by constructing rich context windows, delegating inference to cloud APIs, and executing side effects locally. It presents a terminal-style chat interface with a scanline CRT effect, real-time message streaming, and full Markdown rendering.
 
 **File:** `CommandCenter.tsx` (~1150 lines — the largest component in the system)
 
@@ -263,6 +264,7 @@ The Command Center maintains conversation history per-agent by filtering `messag
 
 ## Related Documentation
 
+- [📜 CONSTITUTION.md](../../CONSTITUTION.md) — **Supreme Law** — Articles I and VII govern Command Center's role
 - [God-Agent](../GOD_AGENT.md) — The default target and auto-heal responder
 - [Agent Fleet](AGENTS.md) — The targetable agents
 - [AI Services](../services/SERVICES.md) — The LLM backends powering responses
