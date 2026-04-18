@@ -814,7 +814,8 @@ export default function App() {
                     description: `[AUTONOMOUS EVOLUTION] As a newly minted L5 Master, propose a systemic architecture refactor or tool upgrade for the Asclepius platform.`,
                     type: "once",
                     scheduledTime: new Date(Date.now() + 60000).toISOString(), // Schedule in 1 minute
-                    intervalMs: 60000
+                    intervalMs: 60000,
+                    status: 'active'
                   };
                   handleAddTask(evolutionTask);
                   postSystemMessage("CORE", `[EVOLUTION LOOP] ${reputationAgent.name} has scheduled an autonomous self-improvement task after reaching Master Level.`);
