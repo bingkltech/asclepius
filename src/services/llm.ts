@@ -163,11 +163,23 @@ export const testConnection = async (settings: LLMSettings): Promise<{ success: 
       if (!settings.ollamaBaseUrl) {
         return { success: false, message: "Ollama Base URL is missing." };
       }
-      const models = await listOllamaModels(settings.ollamaBaseUrl);
-      if (!models.some((m: OllamaModel) => m.name === settings.ollamaModel)) {
-        return { success: false, message: `Ollama is reachable, but model '${settings.ollamaModel}' is not installed.` };
+      
+      // Instead of relying on /api/tags (which doesn't list external/cloud models like kimi-k2.5),
+      // we actually test the model by sending a ping request, exactly like we do for Gemini.
+      try {
+        await chatWithOllama(
+          settings.ollamaBaseUrl, 
+          settings.ollamaModel, 
+          [{ role: 'user', content: 'ping' }], 
+          "Respond with exactly one word: pong"
+        );
+        return { success: true, message: `Ollama connected successfully (Model: ${settings.ollamaModel}).` };
+      } catch (e: any) {
+        if (e.message?.includes("timed out")) {
+          return { success: false, message: `Ollama is reachable, but model '${settings.ollamaModel}' took too long to load or timed out.` };
+        }
+        return { success: false, message: `Ollama is reachable, but model '${settings.ollamaModel}' failed: ${e.message}` };
       }
-      return { success: true, message: `Ollama connected successfully (Model: ${settings.ollamaModel}).` };
     }
   } catch (error) {
     if (isFailoverCondition(error)) {
