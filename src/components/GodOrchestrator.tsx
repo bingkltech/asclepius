@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { LLMSettings, Agent, Project, SandboxRun } from "../types";
+import { initiateGoogleAuth } from "../services/googleAuth";
 
 interface GodOrchestratorProps {
   settings: LLMSettings;
@@ -12,11 +13,54 @@ interface GodOrchestratorProps {
   sandboxRuns: SandboxRun[];
 }
 
+interface CloudWorker {
+  id: string;
+  name: string;
+  email: string;
+  status: 'disconnected' | 'idle' | 'working';
+}
+
 export function GodOrchestrator({ settings, godAgent, projects, sandboxRuns }: GodOrchestratorProps) {
   const [projectGoal, setProjectGoal] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [connectingId, setConnectingId] = useState<string | null>(null);
+
+  const [workers, setWorkers] = useState<CloudWorker[]>([
+    { id: 'worker-1', name: 'Jules Worker 1', email: 'asclepius.coo.agent@gmail.com', status: 'disconnected' },
+    { id: 'worker-2', name: 'Jules Worker 2', email: 'asclepius.worker.2@gmail.com', status: 'disconnected' },
+    { id: 'worker-3', name: 'Jules Worker 3', email: 'asclepius.worker.3@gmail.com', status: 'disconnected' },
+  ]);
 
   const activeProject = projects.find(p => p.status === 'active') || projects[0];
+
+  const handleConnectWorker = async (workerId: string) => {
+    setConnectingId(workerId);
+    const worker = workers.find(w => w.id === workerId);
+    if (!worker) return;
+
+    // Spoof an agent object to satisfy the auth service
+    const spoofedAgent = {
+      id: worker.id,
+      name: worker.name,
+      credentials: { email: worker.email }
+    } as Agent;
+
+    try {
+      const result = await initiateGoogleAuth(spoofedAgent, ['jules', 'profile', 'email']);
+      
+      if (result.success) {
+        setWorkers(prev => prev.map(w => 
+          w.id === workerId ? { ...w, status: 'idle' } : w
+        ));
+      } else {
+        console.error("Failed to authenticate Jules worker", result.error);
+      }
+    } catch (e) {
+      console.error("Auth error", e);
+    } finally {
+      setConnectingId(null);
+    }
+  };
 
   const handleCreateProject = () => {
     if (!projectGoal.trim()) return;
@@ -72,18 +116,30 @@ export function GodOrchestrator({ settings, godAgent, projects, sandboxRuns }: G
             </h3>
             <ScrollArea className="flex-1 -mx-2 px-2">
               <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="bg-secondary/20 border border-border/50 rounded-lg p-3 flex items-center justify-between">
+                {workers.map((worker) => (
+                  <div key={worker.id} className="bg-secondary/20 border border-border/50 rounded-lg p-3 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <Cpu className="w-5 h-5 text-sky-400" />
+                      <Cpu className={worker.status === 'disconnected' ? "w-5 h-5 text-muted-foreground" : "w-5 h-5 text-sky-400"} />
                       <div>
-                        <div className="text-xs font-semibold">Jules Worker {i}</div>
-                        <div className="text-[10px] text-muted-foreground">Account {i} • {i === 1 ? 'Working' : 'Idle'}</div>
+                        <div className="text-xs font-semibold">{worker.name}</div>
+                        <div className="text-[10px] text-muted-foreground">{worker.email} • {worker.status}</div>
                       </div>
                     </div>
-                    {i === 1 && (
+                    {worker.status === 'disconnected' ? (
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="h-7 text-[10px]"
+                        onClick={() => handleConnectWorker(worker.id)}
+                        disabled={connectingId === worker.id}
+                      >
+                        {connectingId === worker.id ? "Connecting..." : "Connect"}
+                      </Button>
+                    ) : (
                       <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+                        {worker.status === 'working' && (
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+                        )}
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500"></span>
                       </span>
                     )}
