@@ -492,7 +492,7 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="resize overflow-hidden flex flex-col bg-background/95 backdrop-blur-xl border-border/50 p-0 max-w-none w-[800px] h-[600px] min-w-[600px] min-h-[400px] max-w-[95vw] max-h-[95vh]"
+      <DialogContent className="resize overflow-hidden flex flex-col bg-background/95 backdrop-blur-xl border-border/50 p-0 max-w-none min-w-[600px] min-h-[400px] max-w-[95vw] max-h-[95vh]"
         style={{ transform: `translate(calc(-50% + ${position.x}px), calc(-50% + ${position.y}px))` }}>
         {/* Header */}
         <div
@@ -909,9 +909,6 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                           onChange={(e) => setHbIntervalMin(e.target.value)}
                           className="bg-secondary/30 border-border/50 text-sm w-28"
                         />
-                        <span className="text-[10px] text-muted-foreground/40">
-                          = {Math.round(parseFloat(hbIntervalMin || "0") * 60)}s
-                        </span>
                       </div>
                       <p className="text-[9px] text-muted-foreground/40">
                         How often the agent must send a liveness signal. Lower = more responsive monitoring.
