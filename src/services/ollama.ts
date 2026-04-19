@@ -11,8 +11,9 @@ export interface OllamaModel {
 }
 
 export const listOllamaModels = async (baseUrl: string): Promise<OllamaModel[]> => {
+  const targetUrl = baseUrl.includes('localhost:11434') ? '/ollama-api' : baseUrl;
   try {
-    const response = await fetch(`${baseUrl}/api/tags`);
+    const response = await fetch(`${targetUrl}/api/tags`);
     if (!response.ok) {
       return [];
     }
@@ -26,7 +27,8 @@ export const listOllamaModels = async (baseUrl: string): Promise<OllamaModel[]> 
 };
 
 export const generateOllamaContent = async (baseUrl: string, model: string, prompt: string, system?: string) => {
-  const response = await fetch(`${baseUrl}/api/generate`, {
+  const targetUrl = baseUrl.includes('localhost:11434') ? '/ollama-api' : baseUrl;
+  const response = await fetch(`${targetUrl}/api/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -35,7 +37,7 @@ export const generateOllamaContent = async (baseUrl: string, model: string, prom
       system,
       stream: false,
       options: {
-        num_ctx: 128000 // Maximize context window
+        num_ctx: 8192 // Safe context window for most local models
       }
     }),
   });
@@ -49,7 +51,8 @@ export const generateOllamaContent = async (baseUrl: string, model: string, prom
 };
 
 export const chatWithOllama = async (baseUrl: string, model: string, messages: { role: string, content: string }[], system?: string) => {
-  const response = await fetch(`${baseUrl}/api/chat`, {
+  const targetUrl = baseUrl.includes('localhost:11434') ? '/ollama-api' : baseUrl;
+  const response = await fetch(`${targetUrl}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -60,7 +63,7 @@ export const chatWithOllama = async (baseUrl: string, model: string, messages: {
       ],
       stream: false,
       options: {
-        num_ctx: 128000 // Maximize context window
+        num_ctx: 8192 // Safe context window for most local models
       }
     }),
   });
