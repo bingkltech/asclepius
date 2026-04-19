@@ -4,13 +4,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { Sidebar } from "./components/Sidebar";
-import { AgentCard } from "./components/AgentCard";
-import { LogViewer } from "./components/LogViewer";
-import { Sandbox } from "./components/Sandbox";
 import { GodOrchestrator } from "./components/GodOrchestrator";
-import { ProjectsPage } from "./components/ProjectsPage";
-import { Chronicle } from "./components/Chronicle";
 import { Settings as SettingsPage } from "./components/Settings";
 import {
   Agent,
@@ -32,36 +26,15 @@ import { getUnifiedChatResponse, resolveAgentSettings } from "./services/llm";
 import { initializeNeuralVault, getRelevantWisdom, recordEpisode, getVaultStats, applyConfidenceDecay, recordSystemLog, db } from "./services/neuralVault";
 import { useLiveQuery } from "dexie-react-hooks";
 import type { NeuralVaultStats } from "./types";
-import { TaskScheduler } from "./components/TaskScheduler";
+
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { loadSettingsFromFile, saveSettingsToFile } from "./services/settingsPersistence";
 import { detectGitHubDesktop, GitHubDesktopStatus } from "./services/githubDesktop";
 import {
-  LayoutDashboard,
-  Users,
-  Code2,
-  Terminal,
-  Plus,
-  Search,
-  Activity,
-  CheckCircle2,
-  AlertCircle,
-  Clock,
-  Eye,
-  ShieldAlert,
-  Crown,
   Zap,
-  TrendingUp,
-  Cpu,
-  Heart,
-  FolderGit2,
-  Boxes,
-  ShieldCheck,
-  XCircle,
-  KeyRound,
-  Brain,
-  Github,
+  TerminalSquare,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -144,39 +117,8 @@ const INITIAL_AGENTS: Agent[] = [
 export default function App() {
   const [activeTab, setActiveTab] = useState(() => localStorage.getItem("asclepius_active_tab") || "dashboard");
   const [agents, setAgents] = useState<Agent[]>(() => {
-    const cached = secureGetItem<Agent[]>("asclepius_agents", INITIAL_AGENTS);
-    // ─── Migration: Hydrate cached agents with Sovereign Identity fields (Article II) ───
-    // Agents saved before the identity system was added won't have authStatus, google, github.
-    // This migration ensures they get the new fields without requiring a localStorage clear.
-    const initialEmailMap = new Map(INITIAL_AGENTS.map(a => [a.id, a.credentials?.email]));
-    return cached.map(agent => {
-      const creds = agent.credentials;
-      if (creds && typeof (creds as any).authStatus === 'undefined') {
-        return {
-          ...agent,
-          credentials: {
-            ...creds,
-            email: creds.email || initialEmailMap.get(agent.id),
-            isAuthenticated: false,
-            authStatus: 'unauthenticated' as const,
-            google: (creds as any).google || { scopes: [], quotaUsed: 0 },
-            github: (creds as any).github || { scope: [], isConnected: false },
-            geminiApiKey: creds.geminiApiKey || "",
-          },
-        };
-      }
-      // Even if authStatus exists, ensure geminiApiKey is present
-      if (creds && typeof creds.geminiApiKey === 'undefined') {
-        return {
-          ...agent,
-          credentials: {
-            ...creds,
-            geminiApiKey: "",
-          }
-        };
-      }
-      return agent;
-    });
+    localStorage.removeItem("asclepius_agents");
+    return INITIAL_AGENTS;
   });
   
   // ─── Sequential Orchestration State ───
@@ -1175,556 +1117,63 @@ export default function App() {
   const fleetQuotaUsed = agents.reduce((sum, a) => sum + (a.credentials?.quotaUsed || 0), 0);
   const fleetQuotaTotal = agents.reduce((sum, a) => sum + (a.credentials?.quotaLimit || 1500), 0);
 
-  const renderContent = () => {
-    switch (activeTab) {
-      case "dashboard":
-        return (
-          <div className="space-y-6">
-            {/* Page Title */}
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <h1 className="text-2xl font-bold tracking-tight">
-                  System Overview
-                </h1>
-                <p className="text-sm text-muted-foreground/70">
-                  Real-time status of your autonomous agent network.
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="relative w-56">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground/40" />
-                  <Input
-                    type="search"
-                    placeholder="Search agents / skills..."
-                    className="pl-8 h-9 bg-secondary/30 border-border/50 text-sm"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                </div>
-                <Button
-                  size="sm"
-                  className="h-9 bg-primary/90 hover:bg-primary shadow-lg shadow-primary/20"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Deploy Agent
-                </Button>
-              </div>
-            </div>
-
-            {/* Stat Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              {[
-                {
-                  label: "Active Agents",
-                  value: agents.length.toString(),
-                  sub: `${activeAgentsCount} working`,
-                  subColor: "text-emerald-400",
-                  icon: Users,
-                  gradient: "from-violet-500/10 to-violet-500/0",
-                  iconColor: "text-violet-400",
-                },
-                {
-                  label: "Tasks Completed",
-                  value: agents.reduce((s, a) => s + a.reputation.totalTasks, 0).toString(),
-                  sub: "+12% from last hour",
-                  subColor: "text-emerald-400",
-                  icon: CheckCircle2,
-                  gradient: "from-emerald-500/10 to-emerald-500/0",
-                  iconColor: "text-emerald-400",
-                },
-                {
-                  label: "System Health",
-                  value: `${avgHealth}%`,
-                  sub: "All systems nominal",
-                  subColor: "text-emerald-400",
-                  icon: Activity,
-                  gradient: "from-sky-500/10 to-sky-500/0",
-                  iconColor: "text-sky-400",
-                  hasBar: true,
-                  barValue: avgHealth,
-                },
-                {
-                  label: "Heartbeats",
-                  value: `${aliveHeartbeats}/${agents.length}`,
-                  sub: aliveHeartbeats === agents.length ? "All agents alive" : `${agents.length - aliveHeartbeats} degraded`,
-                  subColor: aliveHeartbeats === agents.length ? "text-emerald-400" : "text-amber-400",
-                  icon: Heart,
-                  gradient: "from-rose-500/10 to-rose-500/0",
-                  iconColor: "text-rose-400",
-                },
-                {
-                  label: "Avg Latency",
-                  value: `${avgLatency}ms`,
-                  sub: "Across all agents",
-                  subColor: "text-muted-foreground/50",
-                  icon: Zap,
-                  gradient: "from-amber-500/10 to-amber-500/0",
-                  iconColor: "text-amber-400",
-                },
-                {
-                  label: "Projects",
-                  value: projects.filter(p => p.status === 'active' || p.status === 'planning').length.toString(),
-                  sub: `${projects.filter(p => p.status === 'completed').length} completed`,
-                  subColor: "text-emerald-400",
-                  icon: FolderGit2,
-                  gradient: "from-violet-500/10 to-violet-500/0",
-                  iconColor: "text-violet-400",
-                },
-                {
-                  label: "Fleet Quota",
-                  value: `${fleetQuotaUsed}/${fleetQuotaTotal}`,
-                  sub: `${agents.length} agents × free tier`,
-                  subColor: fleetQuotaUsed / fleetQuotaTotal > 0.9 ? "text-rose-400" : "text-sky-400",
-                  icon: KeyRound,
-                  gradient: "from-sky-500/10 to-sky-500/0",
-                  iconColor: "text-sky-400",
-                  hasBar: true,
-                  barValue: Math.min(100, Math.round((fleetQuotaUsed / fleetQuotaTotal) * 100)),
-                },
-                {
-                  label: "Neural Vault",
-                  value: vaultStats.totalKnowledge.toString(),
-                  sub: `${vaultStats.avgConfidence}% avg trust · ${vaultStats.totalEpisodes} episodes`,
-                  subColor: vaultStats.totalKnowledge > 0 ? "text-violet-400" : "text-muted-foreground/40",
-                  icon: Brain,
-                  gradient: "from-violet-500/10 to-violet-500/0",
-                  iconColor: "text-violet-400",
-                  hasBar: true,
-                  barValue: vaultStats.avgConfidence,
-                },
-              ].map((stat) => (
-                <div
-                  key={stat.label}
-                  className={cn(
-                    "stat-card gradient-border rounded-xl bg-card/80 p-4",
-                    `bg-gradient-to-br ${stat.gradient}`
-                  )}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/50">
-                      {stat.label}
-                    </span>
-                    <stat.icon className={cn("w-4 h-4", stat.iconColor)} />
-                  </div>
-                  <div className="text-2xl font-bold tracking-tight">
-                    {stat.value}
-                  </div>
-                  {stat.hasBar && (
-                    <div className="h-1 w-full bg-secondary/40 rounded-full mt-2 overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-1000"
-                        style={{ width: `${stat.barValue}%` }}
-                      />
-                    </div>
-                  )}
-                  <p className={cn("text-[10px] mt-1.5 flex items-center gap-1", stat.subColor)}>
-                    {stat.sub}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            {/* Active Projects Strip */}
-            {projects.filter(p => p.status === 'active' || p.status === 'planning').length > 0 && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FolderGit2 className="w-4 h-4 text-violet-400" />
-                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">Active Projects</span>
-                  </div>
-                  <button onClick={() => setActiveTab("projects")} className="text-[10px] text-sky-400 hover:text-sky-300 transition-colors uppercase tracking-wider">
-                    View All →
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                  {projects.filter(p => p.status === 'active' || p.status === 'planning').slice(0, 4).map(p => {
-                    const prog = p.goals.length > 0 ? Math.round(p.goals.reduce((s, g) => s + g.progress, 0) / p.goals.length) : 0;
-                    const doneGoals = p.goals.filter(g => g.status === "completed").length;
-                    // Sandbox health for this project
-                    const projRuns = sandboxRuns.filter(r => r.projectId === p.id);
-                    const lastRun = projRuns[0];
-                    const activeErrors = lastRun ? lastRun.errors.filter(e => e.status === "open" && e.severity !== "info").length : 0;
-                    const hasRuns = projRuns.length > 0;
-                    return (
-                      <div
-                        key={p.id}
-                        className="gradient-border rounded-xl bg-card/80 p-4 space-y-3 cursor-pointer hover:bg-card/90 transition-all"
-                        onClick={() => setActiveTab("projects")}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <FolderGit2 className="w-3.5 h-3.5 text-violet-400 shrink-0" />
-                            <span className="text-xs font-semibold truncate">{p.name}</span>
-                          </div>
-                          {hasRuns && (
-                            <div className={cn("flex items-center gap-1 text-[8px] font-semibold shrink-0", activeErrors > 0 ? "text-rose-400" : "text-emerald-400")}>
-                              {activeErrors > 0 ? <XCircle className="w-3 h-3" /> : <ShieldCheck className="w-3 h-3" />}
-                              {activeErrors > 0 ? `${activeErrors}` : "✓"}
-                            </div>
-                          )}
-                        </div>
-                        <div className="space-y-1.5">
-                          <div className="flex justify-between text-[8px] uppercase tracking-widest text-muted-foreground/40">
-                            <span>{doneGoals}/{p.goals.length} milestones</span>
-                            <span className="text-foreground/60">{prog}%</span>
-                          </div>
-                          <div className="h-1 w-full bg-secondary/40 rounded-full overflow-hidden">
-                            <div
-                              className={cn("h-full rounded-full transition-all duration-700", prog === 100 ? "bg-emerald-400" : "bg-gradient-to-r from-violet-500 to-sky-400")}
-                              style={{ width: `${prog}%` }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Agent cards - 2 columns */}
-              <div className="lg:col-span-2 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4 text-muted-foreground/50" />
-                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
-                      Agent Fleet
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-muted-foreground/40 italic">
-                    Drag to reorder
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredAgents.map((agent) => (
-                    <div key={agent.id} onDragEnter={() => handleDragEnter(agent.id)}>
-                      <AgentCard
-                        agent={agent}
-                        onUpdateAgent={handleUpdateAgent}
-                        messages={commandMessages}
-                        onDragStart={handleDragStart}
-                        onDragOver={handleDragOver}
-                        onDragEnd={handleDragEnd}
-                        onDrop={handleDrop}
-                        isDragging={draggedAgentId === agent.id}
-                        isDragOver={dragOverAgentId === agent.id}
-                        onPause={handlePauseAgent}
-                        onResume={handleResumeAgent}
-                        onTerminate={handleTerminateAgent}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* System Activity Feed - right col */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-muted-foreground/50" />
-                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
-                      System Activity
-                    </span>
-                  </div>
-                  <button onClick={() => setActiveTab("command")} className="text-[9px] text-sky-400 hover:text-sky-300 transition-colors uppercase tracking-wider">
-                    Open Terminal →
-                  </button>
-                </div>
-                
-                {/* Sandbox Health Summary */}
-                {(() => {
-                  const totalRuns = sandboxRuns.length;
-                  const totalOpen = sandboxRuns.reduce((s, r) => s + r.errors.filter(e => e.status === 'open' && e.severity !== 'info').length, 0);
-                  const totalResolved = sandboxRuns.reduce((s, r) => s + r.errors.filter(e => e.status === 'resolved').length, 0);
-                  return totalRuns > 0 ? (
-                    <div className="gradient-border rounded-xl bg-card/80 p-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <Boxes className="w-3.5 h-3.5 text-amber-400" />
-                        <span className="text-[9px] uppercase tracking-widest font-semibold text-muted-foreground/40">Sandbox Overview</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="text-center p-2 rounded-lg bg-secondary/20">
-                          <div className="text-sm font-bold text-foreground/60">{totalRuns}</div>
-                          <div className="text-[7px] uppercase tracking-widest text-muted-foreground/30">Runs</div>
-                        </div>
-                        <div className="text-center p-2 rounded-lg bg-secondary/20">
-                          <div className={cn("text-sm font-bold", totalOpen > 0 ? "text-rose-400" : "text-emerald-400")}>{totalOpen}</div>
-                          <div className="text-[7px] uppercase tracking-widest text-muted-foreground/30">Open</div>
-                        </div>
-                        <div className="text-center p-2 rounded-lg bg-secondary/20">
-                          <div className="text-sm font-bold text-emerald-400">{totalResolved}</div>
-                          <div className="text-[7px] uppercase tracking-widest text-muted-foreground/30">Fixed</div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null;
-                })()}
-
-                {/* Combined Activity Feed */}
-                <div className="gradient-border rounded-xl bg-card/80 overflow-hidden">
-                  <ScrollArea className="h-[500px]">
-                    <div className="p-3 space-y-1.5">
-                      {(() => {
-                        // Combine command center messages + logs into one timeline
-                        const cmdEvents = commandMessages.slice(-30).map(m => ({
-                          id: m.id,
-                          time: m.timestamp,
-                          sender: m.sender,
-                          message: m.content.slice(0, 120) + (m.content.length > 120 ? '...' : ''),
-                          type: m.sender === 'SANDBOX' ? 'sandbox' as const : m.sender === 'CORE' ? 'system' as const : m.role === 'model' ? 'agent' as const : 'user' as const,
-                          sortKey: Date.now() - (30 - commandMessages.slice(-30).indexOf(m)) * 1000,
-                        }));
-                        const logEvents = logs.map((l, i) => ({
-                          id: l.id,
-                          time: new Date(l.timestamp).toLocaleTimeString(),
-                          sender: l.source,
-                          message: l.message,
-                          type: l.severity === 'error' ? 'error' as const : 'log' as const,
-                          sortKey: Date.now() - i * 1200,
-                        }));
-                        const allEvents = [...cmdEvents, ...logEvents]
-                          .sort((a, b) => b.sortKey - a.sortKey)
-                          .slice(0, 30);
-
-                        const colorMap: Record<string, string> = {
-                          sandbox: 'text-amber-400',
-                          system: 'text-sky-400',
-                          agent: 'text-violet-400',
-                          user: 'text-foreground/60',
-                          error: 'text-rose-400',
-                          log: 'text-muted-foreground/40',
-                        };
-                        const bgMap: Record<string, string> = {
-                          sandbox: 'bg-amber-500/5 border-amber-500/10',
-                          system: 'bg-sky-500/5 border-sky-500/10',
-                          agent: 'bg-violet-500/5 border-violet-500/10',
-                          error: 'bg-rose-500/5 border-rose-500/10',
-                        };
-
-                        if (allEvents.length === 0) {
-                          return (
-                            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground/20 space-y-2">
-                              <Activity className="w-8 h-8" />
-                              <p className="text-[9px] uppercase tracking-widest">No activity yet</p>
-                            </div>
-                          );
-                        }
-
-                        return allEvents.map(evt => (
-                          <div key={evt.id} className={cn(
-                            "flex gap-2 p-2 rounded-lg border border-transparent text-[10px] font-mono transition-colors",
-                            bgMap[evt.type] || ''
-                          )}>
-                            <span className="text-muted-foreground/30 shrink-0 w-[52px]">{evt.time}</span>
-                            <span className={cn("font-bold shrink-0 w-[72px] truncate", colorMap[evt.type] || 'text-muted-foreground/40')}>
-                              {evt.sender}
-                            </span>
-                            <span className="text-foreground/50 break-words min-w-0">{evt.message}</span>
-                          </div>
-                        ));
-                      })()}
-                    </div>
-                  </ScrollArea>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      case "agents":
-        return (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <h1 className="text-2xl font-bold tracking-tight">Agent Fleet</h1>
-                <p className="text-sm text-muted-foreground/70">
-                  Manage, configure, and monitor your autonomous agents.
-                </p>
-              </div>
-              <Button
-                size="sm"
-                className="h-9 bg-primary/90 hover:bg-primary shadow-lg shadow-primary/20"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Deploy Agent
-              </Button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {filteredAgents.map((agent) => (
-                <div key={agent.id} onDragEnter={() => handleDragEnter(agent.id)}>
-                  <AgentCard
-                    agent={agent}
-                    onUpdateAgent={handleUpdateAgent}
-                    messages={commandMessages}
-                    onDragStart={handleDragStart}
-                    onDragOver={handleDragOver}
-                    onDragEnd={handleDragEnd}
-                    onDrop={handleDrop}
-                    isDragging={draggedAgentId === agent.id}
-                    isDragOver={dragOverAgentId === agent.id}
-                    onPause={handlePauseAgent}
-                    onResume={handleResumeAgent}
-                    onTerminate={handleTerminateAgent}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      case "command":
-        return (
-          <GodOrchestrator
-            settings={llmSettings}
-            godAgent={agents.find(a => a.id === "god") || agents[0]}
-            projects={projects}
-            sandboxRuns={sandboxRuns}
-          />
-        );
-      case "scheduler":
-        return (
-          <TaskScheduler
-            agents={agents}
-            tasks={scheduledTasks}
-            onAddTask={handleAddTask}
-            onDeleteTask={handleDeleteTask}
-            onToggleTask={handleToggleTask}
-          />
-        );
-      case "projects":
-        return (
-          <ProjectsPage
-            projects={projects}
-            agents={agents}
-            onUpdateProjects={setProjects}
-            sandboxRuns={sandboxRuns}
-            onNavigateToSandbox={() => setActiveTab("sandbox")}
-          />
-        );
-      case "analyzer":
-      case "sandbox":
-        return (
-          <Sandbox
-            settings={llmSettings}
-            projects={projects}
-            agents={agents}
-            sandboxRuns={sandboxRuns}
-            onUpdateRuns={setSandboxRuns}
-            onCreateTask={handleAddTask}
-            onPostSystemMessage={postSystemMessage}
-            selectedProjectId={activeProjectId}
-            onSelectProject={setActiveProjectId}
-            onUpdateAgent={handleUpdateAgent}
-          />
-        );
-      case "settings":
-        return (
-          <SettingsPage
-            settings={llmSettings}
-            onSettingsChange={setLlmSettings}
-          />
-        );
-      case "logs":
-        return (
-          <div className="h-[calc(100vh-12rem)]">
-            <LogViewer />
-          </div>
-        );
-      case "chronicle":
-        return (
-          <Chronicle
-            vaultStats={vaultStats}
-            onStatsUpdate={setVaultStats}
-          />
-        );
-      default:
-        return null;
-    }
-  };
-
   return (
     <TooltipProvider>
-      <div className="dark flex h-screen bg-background text-foreground overflow-hidden noise-bg mesh-gradient">
-        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-
-        <main className="flex-1 overflow-y-auto">
-          {/* Top Header Bar */}
-          <header className="h-14 border-b border-border/30 flex items-center justify-between px-6 bg-card/20 backdrop-blur-xl sticky top-0 z-10">
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-medium text-muted-foreground/50">Project:</span>
-              <span className="text-xs font-semibold">Asclepius Core v2.4</span>
-            </div>
-            <div className="flex items-center gap-4">
-              {/* Heartbeat indicator */}
-              <div className="flex items-center gap-2">
-                <Heart className="w-3.5 h-3.5 text-rose-400 heartbeat-pulse" />
-                <span className="text-[10px] font-medium text-muted-foreground/60">
-                  {aliveHeartbeats}/{agents.length} Alive
-                </span>
-              </div>
-
-              {/* Emergency Stop */}
-              <Button
-                variant="destructive"
-                size="sm"
-                className="h-7 text-[10px] px-3 font-semibold tracking-wide uppercase shadow-sm shadow-destructive/20"
-                onClick={() => {
-                  setAgents((prev) => prev.map((a) => ({ ...a, status: "idle" as const })));
-                  toast("EMERGENCY STOP", {
-                    description: "All agents forced to idle state.",
-                    style: {
-                      background: "hsl(var(--destructive))",
-                      color: "hsl(var(--destructive-foreground))",
-                      border: "none",
-                    },
-                  });
-                }}
-              >
-                <ShieldAlert className="w-3 h-3 mr-1.5 animate-pulse" />
-                Stop All
-              </Button>
-
-              {/* GitHub Desktop Status */}
-              <div className="flex items-center gap-2">
-                <div className={cn(
-                  "w-1.5 h-1.5 rounded-full",
-                  gitHubStatus?.githubDesktopInstalled ? "bg-emerald-400 status-dot-pulse" : "bg-zinc-500"
-                )} />
-                <span className="text-[10px] font-medium text-muted-foreground/60 flex items-center gap-1">
-                  <Github className="w-3 h-3" />
-                  {gitHubStatus?.githubDesktopInstalled ? "Desktop Linked" : "Git Ready"}
-                </span>
-              </div>
-
-              {/* Status */}
-              <div className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full status-dot-pulse" />
-                <span className="text-[10px] font-medium text-muted-foreground/60">
-                  Jules Connected
-                </span>
-              </div>
-
-              {/* Avatar */}
-              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500/30 to-blue-500/30 border border-border/50 flex items-center justify-center">
-                <span className="text-[10px] font-bold text-foreground/60">A</span>
+      <div className="dark flex flex-col h-screen bg-background text-foreground overflow-hidden noise-bg mesh-gradient">
+        {/* Minimal Header */}
+        <header className="h-14 border-b border-border/50 bg-card/80 backdrop-blur-md flex items-center justify-between px-6 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="relative w-8 h-8 shrink-0">
+              <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-violet-500 to-blue-500 opacity-80" />
+              <div className="absolute inset-0 rounded-lg flex items-center justify-center">
+                <Zap className="w-4 h-4 text-white" />
               </div>
             </div>
-          </header>
-
-          {/* Page Content */}
-          <div className="p-6 max-w-7xl mx-auto">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-              >
-                {renderContent()}
-              </motion.div>
-            </AnimatePresence>
+            <div className="flex flex-col">
+              <span className="font-bold text-sm tracking-tight">Asclepius</span>
+              <span className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-medium">
+                God-Agent Pipeline
+              </span>
+            </div>
           </div>
+          <div className="flex gap-2">
+             <Button
+               variant="ghost"
+               size="sm"
+               className={activeTab === 'command' ? "bg-secondary" : ""}
+               onClick={() => setActiveTab('command')}
+             >
+               <TerminalSquare className="w-4 h-4 mr-2" />
+               Orchestrator
+             </Button>
+             <Button
+               variant="ghost"
+               size="sm"
+               className={activeTab === 'settings' ? "bg-secondary" : ""}
+               onClick={() => setActiveTab('settings')}
+             >
+               <Settings className="w-4 h-4 mr-2" />
+               Configuration
+             </Button>
+          </div>
+        </header>
+
+        <main className="flex-1 overflow-hidden p-6">
+          {activeTab !== 'settings' ? (
+            <GodOrchestrator
+              settings={llmSettings}
+              godAgent={agents[0]}
+              projects={projects}
+              sandboxRuns={sandboxRuns}
+              onUpdateProjects={setProjects}
+              onUpdateSandboxRuns={setSandboxRuns}
+            />
+          ) : (
+            <SettingsPage
+              settings={llmSettings}
+              onSettingsChange={setLlmSettings}
+            />
+          )}
         </main>
         <Toaster
           position="bottom-right"
