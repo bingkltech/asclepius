@@ -304,8 +304,6 @@ export function CommandCenter({ settings, agents, onUpdateSettings, messages, se
       const godAgent = agents.find(a => a.id === "god");
       const commandCenterSettings: LLMSettings = resolveAgentSettings(godAgent, {
         ...settings,
-        provider: "gemini",
-        geminiModel: "gemini-3.1-pro-preview",
         ollamaModel: defaultOllamaModel || settings.ollamaModel
       });
 
@@ -419,8 +417,13 @@ export function CommandCenter({ settings, agents, onUpdateSettings, messages, se
       Suggest one new advanced capability or skill to add to yourself and explain how it improves the system. 
       Also, provide a "Level Up" report.`;
 
+      const commandCenterSettings: LLMSettings = resolveAgentSettings(godAgent, {
+        ...settings,
+        ollamaModel: defaultOllamaModel || settings.ollamaModel
+      });
+
       const responseText = await getUnifiedChatResponse(
-        settings, 
+        commandCenterSettings, 
         prompt, 
         [], 
         "You are the God-Agent undergoing a recursive self-improvement cycle. You are becoming more powerful and efficient.",
@@ -778,47 +781,16 @@ export function CommandCenter({ settings, agents, onUpdateSettings, messages, se
     const relevantLogs = [...new Set([...errorLogs.slice(0, 4), ...recentLogs60s, ...otherLogs])].slice(0, 10);
     const recentLogsText = relevantLogs.map(l => `[${new Date(l.timestamp).toLocaleTimeString()}] ${l.source}: ${l.message}`).join("\n");
     
-    // ─── Tier 2: Agent Context Compression ───
-    // Verbose for small fleets, compressed for 6+ agents
-    const agentsContext = agents.length <= 6
-      ? agents.map(a => {
-          const topSkills = a.skills
-            .sort((x, y) => y.level - x.level)
-            .slice(0, 5)
-            .map(s => `${s.name}(L${s.level})`)
-            .join(", ");
-          return `- **${a.name}** (${a.role}): Status: ${a.status}, Heartbeat: ${a.heartbeat.status}. Skills: ${topSkills}. Protected: ${a.isProtected}`;
-        }).join("\n")
-      : agents.map(a => {
-          const skillCount = a.skills.length;
-          const maxLevel = a.skills.length > 0 ? Math.max(...a.skills.map(s => s.level)) : 0;
-          return `- ${a.name} [${a.status}] ${skillCount} skills (max L${maxLevel})${a.isProtected ? ' 🛡️' : ''}`;
-        }).join("\n");
+    // ─── Tier 2: Agent Context Compression (Ultra Compact for Local LLM speed) ───
+    const agentsContext = agents.map(a => `${a.name}(${a.role}): ${a.status}, Skills: ${a.skills.length}`).join(" | ");
 
-    const recentChatTranscript = messages.slice(-15).map(m => `[${m.timestamp}] ${m.sender}: ${m.content.slice(0, 300)}`).join("\n\n");
+    const recentChatTranscript = messages.slice(-5).map(m => `[${m.timestamp}] ${m.sender}: ${m.content.slice(0, 100)}`).join("\n");
 
-    // ─── Tier 4: Project Context Scoping ───
-    const activeProjects = projects.filter(p => p.status === 'active' || p.status === 'planning' || p.status === 'review');
-    const projectContext = activeProjects.length > 0 ? activeProjects.map(p => {
-      const progress = p.goals.length > 0 ? Math.round(p.goals.reduce((s, g) => s + g.progress, 0) / p.goals.length) : 0;
-      
-      // If it's the actively selected project OR there's no active project and it's the only project, show full context
-      const isActiveContext = p.id === activeProjectId || (activeProjectId === "none" && activeProjects.length === 1);
-      
-      if (isActiveContext) {
-        const goalsList = p.goals.map(g => `  - [${g.status.toUpperCase()}] ${g.title} (${g.progress}%)${g.assignedAgentId ? ` → Agent: ${g.assignedAgentId}` : ''}`).join('\n');
-        const assignedNames = p.assignedAgentIds.map(id => agents.find(a => a.id === id)?.name || id).join(', ');
-        return `📋 Project: "${p.name}" [${p.status.toUpperCase()}] (Priority: ${p.priority}) — ${progress}% complete
-  GitHub: ${p.githubUrl || 'N/A'}
-  Tech: ${p.techStack.join(', ') || 'N/A'}
-  Description: ${p.description.slice(0, 200) || 'No description'}
-  Assigned: ${assignedNames || 'No agents assigned'}
-  Milestones:\n${goalsList || '  - No milestones defined'}`;
-      } else {
-        // Compress context for inactive projects
-        return `📋 Project: "${p.name}" [${p.status.toUpperCase()}] — ${progress}% complete (Priority: ${p.priority})`;
-      }
-    }).join('\n\n') : 'No active projects.';
+    // ─── Tier 4: Project Context Scoping (Compact) ───
+    const activeProjects = projects.filter(p => p.status === 'active');
+    const projectContext = activeProjects.length > 0 
+      ? activeProjects.map(p => `Project: ${p.name} [${p.status}]`).join(' | ') 
+      : 'No active projects.';
 
     const budgetReportText = await formatBudgetReportForAgent();
 
@@ -837,15 +809,14 @@ Recent Global Chat Transcript (What other agents and the user have said):
 ${recentChatTranscript}
 
 ${(() => {
-  const recentRuns = sandboxRuns.slice(0, 5);
+  const recentRuns = sandboxRuns.slice(0, 2);
   if (recentRuns.length === 0) return '═══ SANDBOX ═══\nNo test runs yet.';
   const runsSummary = recentRuns.map(r => {
     const proj = projects.find(p => p.id === r.projectId);
     const criticals = r.errors.filter(e => e.severity === 'critical').length;
-    const warnings = r.errors.filter(e => e.severity === 'warning').length;
-    return `  [${r.status.toUpperCase()}] ${proj ? proj.name : 'Unscoped'} — ${criticals} critical, ${warnings} warnings (${new Date(r.createdAt).toLocaleTimeString()})`;
+    return `[${r.status.toUpperCase()}] ${proj ? proj.name : 'Unscoped'} — ${criticals} errors`;
   }).join('\n');
-  return `═══ SANDBOX HEALTH ═══\nLast ${recentRuns.length} test runs:\n${runsSummary}`;
+  return `═══ SANDBOX HEALTH ═══\nLast ${recentRuns.length} runs:\n${runsSummary}`;
 })()}
 
 Your Role & Instructions:
@@ -963,15 +934,6 @@ ${(() => {
         ollamaModel: defaultOllamaModel || settings.ollamaModel
       });
 
-      // God-Agent enforces strict models on top of per-agent resolution
-      if (targetAgent.id === "god") {
-        commandCenterSettings = {
-          ...commandCenterSettings,
-          provider: "gemini",
-          geminiModel: commandCenterSettings.geminiModel || "gemini-3.1-pro-preview",
-          ollamaModel: commandCenterSettings.ollamaModel || "gemma4:e4b"
-        };
-      }
 
       if (targetAgent.name === "Healer-01") {
         const codeToAnalyze = actualMessage.replace(/^\/(analyze|fix)\s*/i, "");
