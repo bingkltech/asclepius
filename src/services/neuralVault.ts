@@ -19,7 +19,7 @@
 
 import Dexie, { type EntityTable } from 'dexie';
 import FlexSearch from 'flexsearch';
-import type { KnowledgeNode, EpisodicEvent, SkillScript, NeuralVaultStats, KnowledgeCategory } from '@/src/types';
+import type { KnowledgeNode, EpisodicEvent, SkillScript, NeuralVaultStats, KnowledgeCategory, SystemLogEntry, APICallRecord } from '@/src/types';
 
 // ─── Database Schema ───
 
@@ -27,6 +27,8 @@ class NeuralVaultDB extends Dexie {
   knowledge!: EntityTable<KnowledgeNode, 'id'>;
   episodes!: EntityTable<EpisodicEvent, 'id'>;
   skillScripts!: EntityTable<SkillScript, 'id'>;
+  systemLogs!: EntityTable<SystemLogEntry, 'id'>;
+  apiLedger!: EntityTable<APICallRecord, 'id'>;
 
   constructor() {
     super('AsclepiusNeuralVault');
@@ -37,11 +39,17 @@ class NeuralVaultDB extends Dexie {
       episodes: 'id, agentId, outcome, timestamp, knowledgeNodeId',
       skillScripts: 'id, name, successRate, timesUsed, createdBy, createdAt',
     });
+
+    // Version 2: Added System Logs and API Ledger
+    this.version(2).stores({
+      systemLogs: 'id, timestamp, severity, category, source, sourceId, projectId',
+      apiLedger: 'id, timestamp, agentId, provider, purpose, keySource, outcome',
+    });
   }
 }
 
 // ─── Singleton Instance ───
-const db = new NeuralVaultDB();
+export const db = new NeuralVaultDB();
 
 // ─── FlexSearch Index (Rebuilt on load for semantic search) ───
 const knowledgeIndex = new FlexSearch.Index({
@@ -153,6 +161,52 @@ export async function recordEpisode(
 
   await db.episodes.add(episode);
   return episode;
+}
+
+// ─── SYSTEM LOGS (Operational Events) ───
+
+const LOG_RETENTION_DAYS = 30;
+
+/**
+ * Records an operational event to the System Logs.
+ * Uses OpenTelemetry-aligned structure.
+ */
+export async function recordSystemLog(
+  entry: Omit<SystemLogEntry, 'id' | 'timestamp'>
+): Promise<void> {
+  const log: SystemLogEntry = {
+    ...entry,
+    id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    timestamp: new Date().toISOString(),
+  };
+
+  db.systemLogs.add(log).catch(err => console.error('[SystemLog] Failed to write log:', err));
+
+  // Periodically prune logs older than 30 days
+  if (Math.random() < 0.05) { // Run pruning on ~5% of logs to save performance
+    pruneSystemLogs();
+  }
+}
+
+async function pruneSystemLogs() {
+  try {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - LOG_RETENTION_DAYS);
+    const cutoff = cutoffDate.toISOString();
+
+    const oldLogs = await db.systemLogs.where('timestamp').below(cutoff).toArray();
+    if (oldLogs.length > 0) {
+      await db.systemLogs.bulkDelete(oldLogs.map(l => l.id));
+      console.log(`[SystemLog] Pruned ${oldLogs.length} old logs`);
+    }
+  } catch (err) {
+    console.error('[SystemLog] Failed to prune logs:', err);
+  }
+}
+
+/** Retrieves the most recent system logs, descending by timestamp */
+export async function getSystemLogs(limit: number = 50): Promise<SystemLogEntry[]> {
+  return db.systemLogs.orderBy('timestamp').reverse().limit(limit).toArray();
 }
 
 /**

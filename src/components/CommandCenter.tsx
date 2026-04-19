@@ -12,11 +12,12 @@ import { Send, User, TerminalSquare, Bot, Settings2, Cpu, Globe, RefreshCw, Shie
 import { getUnifiedChatResponse, getUnifiedCodeAnalysis, testConnection, getGeminiRefreshInfo, resolveAgentSettings, trackAgentQuota } from "@/src/services/llm";
 import { listOllamaModels, OllamaModel } from "@/src/services/ollama";
 import { julesSubmitTask, julesPollTask, julesCancelTask, getJulesTasks, JulesTask } from "@/src/services/jules";
-import { addKnowledge, saveSkillScript, searchKnowledge, getVaultStats, recordEpisode } from "@/src/services/neuralVault";
+import { addKnowledge, saveSkillScript, searchKnowledge, getVaultStats, recordEpisode, getSystemLogs, db } from "@/src/services/neuralVault";
+import { useLiveQuery } from "dexie-react-hooks";
 import { listBranches, getStatus, mergeBranch, checkoutBranch, getConflicts } from "@/src/services/gitOps";
 import { openInDesktop } from "@/src/services/githubDesktop";
 import { formatBudgetReportForAgent } from "@/src/services/apiBudget";
-import { ChatMessage, LogEntry, LLMSettings, Agent, AgentSkill, LLMProvider, SKILL_XP_TABLE, SKILL_LEVEL_NAMES, Project, GoalStatus, SandboxRun, createSkill } from "@/src/types";
+import { ChatMessage, SystemLogEntry, LLMSettings, Agent, AgentSkill, LLMProvider, SKILL_XP_TABLE, SKILL_LEVEL_NAMES, Project, GoalStatus, SandboxRun, createSkill } from "@/src/types";
 import { motion } from "motion/react";
 import ReactMarkdown from "react-markdown";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -28,7 +29,6 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
 interface CommandCenterProps {
-  logs: LogEntry[];
   settings: LLMSettings;
   agents: Agent[];
   onUpdateSettings?: (settings: LLMSettings) => void;
@@ -51,13 +51,14 @@ interface CommandCenterProps {
 
 // createSkill imported from @/src/types (canonical source)
 
-export function CommandCenter({ logs, settings, agents, onUpdateSettings, messages, setMessages, onSpawnAgent, onTerminateAgent, onPauseAgent, onResumeAgent, onAddTask, onUpdateAgent, projects = [], onUpdateProjects, sandboxRuns = [], onUpdateSandboxRuns, activeProjectId = "none", activeTokenAgentId = null }: CommandCenterProps) {
+export function CommandCenter({ settings, agents, onUpdateSettings, messages, setMessages, onSpawnAgent, onTerminateAgent, onPauseAgent, onResumeAgent, onAddTask, onUpdateAgent, projects = [], onUpdateProjects, sandboxRuns = [], onUpdateSandboxRuns, activeProjectId = "none", activeTokenAgentId = null }: CommandCenterProps) {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [defaultOllamaModel, setDefaultOllamaModel] = useState<string>("");
   const [ollamaModels, setOllamaModels] = useState<OllamaModel[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const logs = useLiveQuery(() => db.systemLogs.orderBy('timestamp').reverse().limit(10).toArray(), []) || [];
   const [connectionStatus, setConnectionStatus] = useState<{ success: boolean; message: string } | null>(null);
   const [julesTasks, setJulesTasks] = useState<JulesTask[]>(() => getJulesTasks());
   const [gitStatus, setGitStatus] = useState<any>(null);
@@ -251,12 +252,12 @@ export function CommandCenter({ logs, settings, agents, onUpdateSettings, messag
     if (latestLog.id === lastProcessedLogId.current) return;
     lastProcessedLogId.current = latestLog.id;
 
-    if (latestLog.type === 'error' || latestLog.message.toLowerCase().includes('error') || latestLog.message.toLowerCase().includes('failed')) {
+    if (latestLog.severity === 'error' || latestLog.message.toLowerCase().includes('error') || latestLog.message.toLowerCase().includes('failed')) {
       handleAutoHeal(latestLog);
     }
   }, [logs, settings.autoHeal]);
 
-  const handleAutoHeal = async (log: LogEntry) => {
+  const handleAutoHeal = async (log: SystemLogEntry) => {
     if (onResumeAgent) {
       onResumeAgent('god'); // Wake up God-Agent from Hibernation
     }
@@ -265,7 +266,7 @@ export function CommandCenter({ logs, settings, agents, onUpdateSettings, messag
       id: `alert-${Date.now()}`,
       role: "system",
       sender: "MONITOR",
-      content: `[CRITICAL] ERROR DETECTED: "${log.message}" @ ${log.agentId}. SYSTEM INTERRUPT: WAKING GOD-AGENT FOR AUTO-HEAL.`,
+      content: `[CRITICAL] ERROR DETECTED: "${log.message}" @ ${log.source}. SYSTEM INTERRUPT: WAKING GOD-AGENT FOR AUTO-HEAL.`,
       timestamp: new Date().toLocaleTimeString()
     };
     setMessages(prev => [...prev, systemAlert]);
@@ -281,7 +282,7 @@ export function CommandCenter({ logs, settings, agents, onUpdateSettings, messag
         ollamaModel: defaultOllamaModel || settings.ollamaModel
       });
 
-      const prompt = `A system error was detected in the logs: "${log.message}" from agent "${log.agentId}". 
+      const prompt = `A system error was detected in the logs: "${log.message}" from agent "${log.source}". 
       As the God-Agent (Lead Architect), analyze this error and suggest a fix or explain the root cause. 
       If it's a code error, provide a refactored solution.
       
@@ -311,16 +312,16 @@ export function CommandCenter({ logs, settings, agents, onUpdateSettings, messag
         await recordEpisode(
           'god',
           `Auto-healed error: "${log.message}"`,
-          `Error from ${log.agentId}: ${log.message}`,
+          `Error from ${log.source}: ${log.message}`,
           'success',
           responseText.slice(0, 300)
         );
         // Auto-extract wisdom: Ask the vault to store the fix as knowledge
         await addKnowledge(
           `Auto-Heal: ${log.message.slice(0, 60)}`,
-          `**Error:** ${log.message}\n**Source:** ${log.agentId}\n**Resolution:**\n${responseText.slice(0, 500)}`,
+          `**Error:** ${log.message}\n**Source:** ${log.source}\n**Resolution:**\n${responseText.slice(0, 500)}`,
           [...new Set([
-            log.agentId.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+            log.source.toLowerCase().replace(/[^a-z0-9]/g, '-'),
             'auto-heal',
             'error-resolution',
             ...(log.message.match(/\b\w{4,}\b/g) || []).slice(0, 5).map(w => w.toLowerCase())
@@ -736,8 +737,9 @@ export function CommandCenter({ logs, settings, agents, onUpdateSettings, messag
 
     // ─── Tier 3: Log Relevance Filtering ───
     // Prioritize errors and recent logs, deprioritize repetitive [SCHEDULED] noise
+    const logs = await getSystemLogs(20);
     const now = Date.now();
-    const errorLogs = logs.filter(l => l.type === 'error' || l.message.toLowerCase().includes('error'));
+    const errorLogs = logs.filter(l => l.severity === 'error' || l.message.toLowerCase().includes('error'));
     const recentLogs60s = logs.filter(l => {
       // Include logs from last 60 seconds (parse from toLocaleTimeString isn't precise, use index proximity)
       return logs.indexOf(l) < 5;
@@ -747,7 +749,7 @@ export function CommandCenter({ logs, settings, agents, onUpdateSettings, messag
       .filter(l => !l.message.startsWith('[SCHEDULED]')) // Deprioritize scheduled task noise
       .slice(0, 3);
     const relevantLogs = [...new Set([...errorLogs.slice(0, 4), ...recentLogs60s, ...otherLogs])].slice(0, 10);
-    const recentLogsText = relevantLogs.map(l => `[${l.timestamp}] ${l.agentId}: ${l.message}`).join("\n");
+    const recentLogsText = relevantLogs.map(l => `[${new Date(l.timestamp).toLocaleTimeString()}] ${l.source}: ${l.message}`).join("\n");
     
     // ─── Tier 2: Agent Context Compression ───
     // Verbose for small fleets, compressed for 6+ agents
@@ -790,6 +792,8 @@ export function CommandCenter({ logs, settings, agents, onUpdateSettings, messag
         return `📋 Project: "${p.name}" [${p.status.toUpperCase()}] — ${progress}% complete (Priority: ${p.priority})`;
       }
     }).join('\n\n') : 'No active projects.';
+
+    const budgetReportText = await formatBudgetReportForAgent();
 
     const systemContext = `You are operating in the Command Center as the ${targetAgent.name}.
     
@@ -891,7 +895,7 @@ CRITICAL SLEEP PROTOCOL: If you are the God-Agent and you were woken up for a qu
 { "type": "PAUSE_AGENT", "payload": { "agentId": "god" } }
 \`\`\`
 
-${formatBudgetReportForAgent()}
+${budgetReportText}
 
 ${targetAgent.id === 'god' ? `GOD-AGENT EXCLUSIVE DIRECTIVE — API BUDGET REVIEW:
 You are the SOLE authority on API budget efficiency. During every review cycle, you MUST:

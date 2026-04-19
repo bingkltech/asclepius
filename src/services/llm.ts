@@ -7,7 +7,8 @@ import { analyzeCode as analyzeWithGemini, chatWithAgent as chatWithGeminiAgent 
 import { chatWithOllama, generateOllamaContent } from "./ollama";
 import { LLMSettings, CodeAnalysis, Agent } from "../types";
 import { Content } from "@google/genai";
-import { recordAPICall, type CallPurpose } from "./apiBudget";
+import { recordAPICall } from "./apiBudget";
+import { type CallPurpose } from "../types";
 
 // ─── Per-Agent Credential Resolver ───
 // Merges an agent's personal credentials with global settings.

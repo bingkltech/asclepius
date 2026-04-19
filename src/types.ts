@@ -332,13 +332,66 @@ export interface Project {
   completedAt?: string;
 }
 
-// ─── Log Entry ───
-export interface LogEntry {
+// ─── System Log Entry (OpenTelemetry Aligned) ───
+export interface SystemLogEntry {
+  id: string;
+  timestamp: string;           // ISO 8601 UTC
+  severity: 'debug' | 'info' | 'warning' | 'error' | 'critical';
+  category: 'agent_action' | 'api_call' | 'git_event' | 'system' | 'sandbox' | 'error';
+  source: string;              // service.name equivalent (agent name or 'system')
+  sourceId: string;            // agent ID or 'system'
+  message: string;             // Human-readable summary
+  projectId?: string;          // Which project this relates to
+  correlationId?: string;      // Links related events
+  metadata?: Record<string, any>; // Flexible structured data
+}
+
+// Keep a backward-compatible alias for now to prevent massive build breaks before refactoring
+export type LogEntry = SystemLogEntry;
+
+// ─── API Ledger Types ───
+export type CallPurpose = 
+  | 'human_command'      // User typed a message
+  | 'scheduled_task'     // Orchestrator executed a scheduled task
+  | 'sandbox_analysis'   // Sandbox code analysis
+  | 'error_fix'          // Error detection/fix
+  | 'god_audit'          // God-Agent 3-day review
+  | 'simulation'         // Simulation activity (should be rare/free)
+  | 'connection_test'    // Test Connection button
+  | 'unknown';
+
+export type CallOutcome = 'success' | 'failed_429' | 'failed_error' | 'fallback_ollama';
+
+export interface APICallRecord {
   id: string;
   timestamp: string;
   agentId: string;
-  message: string;
-  type: 'info' | 'success' | 'warning' | 'error';
+  agentName: string;
+  provider: 'gemini' | 'ollama';      // Which provider actually handled it
+  requestedProvider: 'gemini' | 'ollama' | 'auto';  // What was requested
+  routedBy: 'user' | 'smart_router';  // Who decided the provider
+  keySource: 'personal' | 'global';   // Agent's own API key vs company credit card
+  purpose: CallPurpose;
+  outcome: CallOutcome;
+  promptLength: number;                // Characters sent
+  responseLength: number;              // Characters received
+  productive: boolean;                 // Did this call produce deliverable output?
+  description: string;                 // Human-readable summary
+}
+
+export interface BudgetSummary {
+  totalCalls: number;
+  geminiCalls: number;
+  ollamaCalls: number;
+  productiveCalls: number;
+  wastedCalls: number;
+  failed429Count: number;
+  efficiencyScore: number;            // 0-100, percentage of productive calls
+  callsByPurpose: Record<string, number>;
+  callsByAgent: Record<string, number>;
+  periodStart: string;
+  periodEnd: string;
+  topRecommendation: string;
 }
 
 // ─── Code Analysis ───

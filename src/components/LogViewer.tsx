@@ -3,31 +3,35 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { LogEntry } from "@/src/types";
+import { SystemLogEntry } from "@/src/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Terminal, Circle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
-
-interface LogViewerProps {
-  logs: LogEntry[];
-}
+import { useLiveQuery } from "dexie-react-hooks";
+import { db } from "@/src/services/neuralVault";
 
 const typeColors: Record<string, string> = {
   error: "text-rose-400",
+  critical: "text-rose-500 font-bold",
   warning: "text-amber-400",
   success: "text-emerald-400",
   info: "text-sky-300/80",
+  debug: "text-zinc-500",
 };
 
 const typeDots: Record<string, string> = {
   error: "bg-rose-500",
+  critical: "bg-rose-600 animate-pulse",
   warning: "bg-amber-500",
   success: "bg-emerald-500",
   info: "bg-sky-500/60",
+  debug: "bg-zinc-600",
 };
 
-export function LogViewer({ logs }: LogViewerProps) {
+export function LogViewer() {
+  const logs = useLiveQuery(() => db.systemLogs.orderBy('timestamp').reverse().limit(100).toArray(), []) || [];
+
   return (
     <div className="flex flex-col h-full bg-[hsl(228,16%,5%)] text-zinc-400 font-mono text-xs border border-border/30 rounded-xl overflow-hidden">
       {/* Header */}
@@ -63,23 +67,23 @@ export function LogViewer({ logs }: LogViewerProps) {
                 className="flex items-start gap-2.5 py-1 px-2 rounded hover:bg-white/[0.02] transition-colors group"
               >
                 {/* Status dot */}
-                <div className={cn("w-1.5 h-1.5 rounded-full mt-1.5 shrink-0", typeDots[log.type] || typeDots.info)} />
+                <div className={cn("w-1.5 h-1.5 rounded-full mt-1.5 shrink-0", typeDots[log.severity] || typeDots.info)} />
 
                 {/* Timestamp */}
-                <span className="text-[10px] text-muted-foreground/30 shrink-0 tabular-nums w-[58px]">
-                  {log.timestamp}
+                <span className="text-[10px] text-muted-foreground/30 shrink-0 tabular-nums w-[65px]">
+                  {new Date(log.timestamp).toLocaleTimeString()}
                 </span>
 
-                {/* Agent name */}
-                <span className="text-violet-400/70 shrink-0 font-medium text-[10px] w-[90px] truncate">
-                  {log.agentId}
+                {/* Source/Agent */}
+                <span className="text-violet-400/70 shrink-0 font-medium text-[10px] w-[90px] truncate" title={log.category}>
+                  {log.source}
                 </span>
 
                 {/* Message */}
                 <span
                   className={cn(
-                    "text-[11px] leading-relaxed",
-                    typeColors[log.type] || typeColors.info
+                    "text-[11px] leading-relaxed break-words pr-2",
+                    typeColors[log.severity] || typeColors.info
                   )}
                 >
                   {log.message}

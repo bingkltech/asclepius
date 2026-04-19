@@ -29,7 +29,8 @@ import {
   CORE_GIT_SKILLS,
 } from "./types";
 import { getUnifiedChatResponse, resolveAgentSettings } from "./services/llm";
-import { initializeNeuralVault, getRelevantWisdom, recordEpisode, getVaultStats, applyConfidenceDecay } from "./services/neuralVault";
+import { initializeNeuralVault, getRelevantWisdom, recordEpisode, getVaultStats, applyConfidenceDecay, recordSystemLog, db } from "./services/neuralVault";
+import { useLiveQuery } from "dexie-react-hooks";
 import type { NeuralVaultStats } from "./types";
 import { TaskScheduler } from "./components/TaskScheduler";
 import { Toaster } from "@/components/ui/sonner";
@@ -322,13 +323,9 @@ export default function App() {
     }
     return INITIAL_AGENTS.map((a) => a.id);
   });
-  const [logs, setLogs] = useState<LogEntry[]>(() => {
-    const saved = localStorage.getItem("asclepius_logs");
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
-    }
-    return [];
-  });
+  
+  const logs = useLiveQuery(() => db.systemLogs.orderBy('timestamp').reverse().limit(15).toArray(), []) || [];
+
   const [activeProjectId, setActiveProjectId] = useState<string>("none");
   const [searchQuery, setSearchQuery] = useState("");
   const [draggedAgentId, setDraggedAgentId] = useState<string | null>(null);
@@ -398,7 +395,6 @@ export default function App() {
       // Local persistence (browser)
       secureSetItem("asclepius_agents", agents);
       localStorage.setItem("asclepius_agent_order", JSON.stringify(agentOrder));
-      localStorage.setItem("asclepius_logs", JSON.stringify(logs.slice(0, 100)));
       localStorage.setItem("asclepius_messages", JSON.stringify(commandMessages.slice(-100)));
       localStorage.setItem("asclepius_tasks", JSON.stringify(scheduledTasks));
       localStorage.setItem("asclepius_active_tab", activeTab);
@@ -419,7 +415,7 @@ export default function App() {
       });
     }, 2000);
     return () => { if (persistTimerRef.current) clearTimeout(persistTimerRef.current); };
-  }, [agents, agentOrder, logs, commandMessages, scheduledTasks, activeTab, llmSettings]);
+  }, [agents, agentOrder, commandMessages, scheduledTasks, activeTab, llmSettings]);
 
   // ─── Boot: Load settings from encrypted file ───
   const [fileSettingsLoaded, setFileSettingsLoaded] = useState(false);
@@ -550,30 +546,29 @@ export default function App() {
   // ─── God-Agent Boot Sequence & Tactical Hibernation ───
   useEffect(() => {
     // Stage 0: Fleet Identity Initialization — validate all agent credentials on boot
-    const fleetBootLog: LogEntry[] = agents.map((agent) => {
+    agents.forEach((agent) => {
       const hasCreds = !!agent.credentials?.geminiApiKey;
       const identity = agent.credentials?.email || "unprovisioned";
       const provider = hasCreds ? "personal-key" : (agent.provider || "global-fallback");
-      return {
-        id: `boot-id-${agent.id}-${Date.now()}`,
-        timestamp: new Date().toLocaleTimeString(),
-        agentId: agent.name,
+      recordSystemLog({
+        severity: "info",
+        category: "system",
+        source: agent.name,
+        sourceId: agent.id,
         message: `[FLEET BOOT] Identity: ${identity} | Provider: ${provider} | Status: ${agent.status === "paused" ? "HIBERNATING" : "ONLINE"}`,
-        type: hasCreds ? "success" as const : "info" as const,
-      };
+      });
     });
-    setLogs((prev) => [...fleetBootLog, ...prev].slice(0, 50));
 
     // ─── Neural Vault Initialization ───
     initializeNeuralVault().then((stats) => {
       setVaultStats(stats);
-      setLogs((prev) => [{
-        id: `vault-boot-${Date.now()}`,
-        timestamp: new Date().toLocaleTimeString(),
-        agentId: "God-Agent",
+      recordSystemLog({
+        severity: "info",
+        category: "system",
+        source: "God-Agent",
+        sourceId: "god",
         message: `[NEURAL VAULT] Initialized: ${stats.totalKnowledge} knowledge nodes, ${stats.totalEpisodes} episodes, ${stats.totalSkillScripts} skill scripts. Avg confidence: ${stats.avgConfidence}%`,
-        type: "success" as const,
-      }, ...prev].slice(0, 50));
+      });
     });
 
     // Stage 1: Boot initialization sweep
@@ -810,13 +805,13 @@ export default function App() {
         // ═══ Recovery logging (outside the map to avoid nested setState) ═══
         if (hasDeadAgents && tickNum % 3 === 0) {
           deadNames.forEach((name) => {
-            setLogs((prevLogs) => [{
-              id: `recovery-${name}-${now}`,
-              timestamp: nowTime,
-              agentId: name,
+            recordSystemLog({
+              severity: "error",
+              category: "agent_action",
+              source: name,
+              sourceId: agents.find(a => a.name === name)?.id || name,
               message: `[AUTO-RECOVERY] Agent heartbeat was DEAD. Automatic restart executed.`,
-              type: "error" as const,
-            }, ...prevLogs].slice(0, 50));
+            });
 
             setCommandMessages((prevMsgs) => [...prevMsgs, {
               id: `recovery-alert-${name}-${now}`,
@@ -1011,14 +1006,13 @@ export default function App() {
       setAgents((prev) => [...prev, newAgent]);
       setAgentOrder((prev) => [...prev, newId]);
 
-      const newLog: LogEntry = {
-        id: Math.random().toString(36).substr(2, 9),
-        timestamp: new Date().toLocaleTimeString(),
-        agentId: "God-Agent",
+      recordSystemLog({
+        severity: "info",
+        category: "system",
+        source: "God-Agent",
+        sourceId: "god",
         message: `[SPAWN] Created agent "${spec.name}" (${spec.role}) with ${spec.skills.length} skills`,
-        type: "success",
-      };
-      setLogs((prev) => [newLog, ...prev].slice(0, 50));
+      });
       toast.success(`God-Agent spawned: ${spec.name}`);
     },
     []
@@ -1037,14 +1031,13 @@ export default function App() {
       setAgents((prev) => prev.filter((a) => a.id !== agentId));
       setAgentOrder((prev) => prev.filter((id) => id !== agentId));
 
-      const newLog: LogEntry = {
-        id: Math.random().toString(36).substr(2, 9),
-        timestamp: new Date().toLocaleTimeString(),
-        agentId: "God-Agent",
+      recordSystemLog({
+        severity: "warning",
+        category: "system",
+        source: "God-Agent",
+        sourceId: "god",
         message: `[TERMINATE] Agent "${target.name}" terminated. Reason: No longer needed.`,
-        type: "warning",
-      };
-      setLogs((prev) => [newLog, ...prev].slice(0, 50));
+      });
       toast.warning(`God-Agent terminated: ${target.name}`);
     },
     [agents]
@@ -1192,14 +1185,13 @@ export default function App() {
         );
 
         // Update Logs & Messages
-        const newLog: LogEntry = {
-          id: `task-log-${Date.now()}`,
-          timestamp: new Date().toLocaleTimeString(),
-          agentId: agent.name,
+        recordSystemLog({
+          severity: "info",
+          category: "agent_action",
+          source: agent.name,
+          sourceId: agent.id,
           message: `[TASK_COMPLETE] ${taskDescription}: ${response.slice(0, 100)}...`,
-          type: "success",
-        };
-        setLogs(prev => [newLog, ...prev].slice(0, 50));
+        });
         
         postSystemMessage(agent.name, `### TASK_COMPLETE: ${taskDescription}\n\n${response}`);
 
@@ -1609,12 +1601,12 @@ export default function App() {
                           type: m.sender === 'SANDBOX' ? 'sandbox' as const : m.sender === 'CORE' ? 'system' as const : m.role === 'model' ? 'agent' as const : 'user' as const,
                           sortKey: Date.now() - (30 - commandMessages.slice(-30).indexOf(m)) * 1000,
                         }));
-                        const logEvents = logs.slice(0, 15).map((l, i) => ({
+                        const logEvents = logs.map((l, i) => ({
                           id: l.id,
-                          time: l.timestamp,
-                          sender: l.agentId,
+                          time: new Date(l.timestamp).toLocaleTimeString(),
+                          sender: l.source,
                           message: l.message,
-                          type: l.type === 'error' ? 'error' as const : 'log' as const,
+                          type: l.severity === 'error' ? 'error' as const : 'log' as const,
                           sortKey: Date.now() - i * 1200,
                         }));
                         const allEvents = [...cmdEvents, ...logEvents]
@@ -1708,7 +1700,6 @@ export default function App() {
       case "command":
         return (
           <CommandCenter
-            logs={logs}
             settings={llmSettings}
             agents={agents}
             projects={projects}
@@ -1774,7 +1765,7 @@ export default function App() {
       case "logs":
         return (
           <div className="h-[calc(100vh-12rem)]">
-            <LogViewer logs={logs} />
+            <LogViewer />
           </div>
         );
       case "chronicle":

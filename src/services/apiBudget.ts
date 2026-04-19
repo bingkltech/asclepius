@@ -7,100 +7,55 @@
  * on API efficiency and recommend optimizations.
  */
 
-// ─── Types ───
+// ─── Types moved to types.ts ───
+import { APICallRecord, CallPurpose, CallOutcome, BudgetSummary } from '../types';
 
-export type CallPurpose = 
-  | 'human_command'      // User typed a message
-  | 'scheduled_task'     // Orchestrator executed a scheduled task
-  | 'sandbox_analysis'   // Sandbox code analysis
-  | 'error_fix'          // Error detection/fix
-  | 'god_audit'          // God-Agent 3-day review
-  | 'simulation'         // Simulation activity (should be rare/free)
-  | 'connection_test'    // Test Connection button
-  | 'unknown';
+// ─── Storage (Migrated to Dexie) ───
+import { db } from './neuralVault';
 
-export type CallOutcome = 'success' | 'failed_429' | 'failed_error' | 'fallback_ollama';
-
-export interface APICallRecord {
-  id: string;
-  timestamp: string;
-  agentId: string;
-  agentName: string;
-  provider: 'gemini' | 'ollama';      // Which provider actually handled it
-  requestedProvider: 'gemini' | 'ollama' | 'auto';  // What was requested
-  routedBy: 'user' | 'smart_router';  // Who decided the provider
-  keySource: 'personal' | 'global';   // Agent's own API key vs company credit card
-  purpose: CallPurpose;
-  outcome: CallOutcome;
-  promptLength: number;                // Characters sent
-  responseLength: number;              // Characters received
-  productive: boolean;                 // Did this call produce deliverable output?
-  description: string;                 // Human-readable summary
-}
-
-export interface BudgetSummary {
-  totalCalls: number;
-  geminiCalls: number;
-  ollamaCalls: number;
-  productiveCalls: number;
-  wastedCalls: number;
-  failed429Count: number;
-  efficiencyScore: number;            // 0-100, percentage of productive calls
-  callsByPurpose: Record<string, number>;
-  callsByAgent: Record<string, number>;
-  periodStart: string;
-  periodEnd: string;
-  topRecommendation: string;
-}
-
-// ─── Storage ───
-
-const STORAGE_KEY = 'asclepius_api_budget';
-const MAX_RECORDS = 200; // Keep last 200 calls
-
-function loadRecords(): APICallRecord[] {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return JSON.parse(stored);
-  } catch { /* ignore */ }
-  return [];
-}
-
-function saveRecords(records: APICallRecord[]): void {
-  // Keep only the most recent records
-  const trimmed = records.slice(-MAX_RECORDS);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
-}
+const MAX_RECORDS = 500; // Keep more records since Dexie handles it better
 
 // ─── Public API ───
 
-/** Record a single API call */
-export function recordAPICall(call: Omit<APICallRecord, 'id' | 'timestamp'>): APICallRecord {
+/** Record a single API call (fire-and-forget to avoid blocking) */
+export function recordAPICall(call: Omit<APICallRecord, 'id' | 'timestamp'>): void {
   const record: APICallRecord = {
     ...call,
     id: `api-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     timestamp: new Date().toISOString(),
   };
 
-  const records = loadRecords();
-  records.push(record);
-  saveRecords(records);
+  db.apiLedger.add(record).catch(err => console.error('[API Ledger] Failed to save record:', err));
+  
+  // Auto-prune periodically (fire-and-forget)
+  pruneAPIRecords();
+}
 
-  return record;
+/** Keep DB size manageable */
+async function pruneAPIRecords() {
+  try {
+    const count = await db.apiLedger.count();
+    if (count > MAX_RECORDS) {
+      const oldest = await db.apiLedger.orderBy('timestamp').limit(count - MAX_RECORDS).toArray();
+      const idsToDelete = oldest.map(r => r.id);
+      await db.apiLedger.bulkDelete(idsToDelete);
+    }
+  } catch (err) {
+    // ignore
+  }
 }
 
 /** Get all records (optionally filtered by time range) */
-export function getAPIRecords(sinceHoursAgo?: number): APICallRecord[] {
-  const records = loadRecords();
-  if (!sinceHoursAgo) return records;
+export async function getAPIRecords(sinceHoursAgo?: number): Promise<APICallRecord[]> {
+  if (!sinceHoursAgo) return db.apiLedger.toArray();
 
-  const cutoff = Date.now() - (sinceHoursAgo * 3600000);
-  return records.filter(r => new Date(r.timestamp).getTime() > cutoff);
+  const cutoff = new Date(Date.now() - (sinceHoursAgo * 3600000)).toISOString();
+  return db.apiLedger.where('timestamp').aboveOrEqual(cutoff).toArray();
 }
 
 /** Generate a budget summary for the God-Agent's review */
-export function generateBudgetSummary(sinceHoursAgo: number = 5): BudgetSummary {
-  const records = getAPIRecords(sinceHoursAgo);
+export async function generateBudgetSummary(sinceHoursAgo: number = 5): Promise<BudgetSummary> {
+  const records = await getAPIRecords(sinceHoursAgo);
   const now = new Date().toISOString();
   const periodStart = new Date(Date.now() - sinceHoursAgo * 3600000).toISOString();
 
@@ -178,9 +133,9 @@ export function generateBudgetSummary(sinceHoursAgo: number = 5): BudgetSummary 
 }
 
 /** Format the budget summary as a text block for injection into the God-Agent prompt */
-export function formatBudgetReportForAgent(): string {
-  const summary = generateBudgetSummary(5); // Last 5 hours (one Gemini refresh cycle)
-  const records = getAPIRecords(5); // Get raw records for key source breakdown
+export async function formatBudgetReportForAgent(): Promise<string> {
+  const summary = await generateBudgetSummary(5); // Last 5 hours (one Gemini refresh cycle)
+  const records = await getAPIRecords(5); // Get raw records for key source breakdown
 
   if (summary.totalCalls === 0) {
     return `═══ API BUDGET REPORT (Last 5hrs) ═══\nNo API calls recorded. System is idle. Budget: 100% preserved.`;
@@ -219,6 +174,6 @@ GOD-AGENT RECOMMENDATION: ${summary.topRecommendation}
 }
 
 /** Reset the budget ledger (for testing or manual clear) */
-export function clearBudgetLedger(): void {
-  localStorage.removeItem(STORAGE_KEY);
+export async function clearBudgetLedger(): Promise<void> {
+  await db.apiLedger.clear();
 }
