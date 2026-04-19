@@ -12,6 +12,11 @@ import { recordAPICall, type CallPurpose } from "./apiBudget";
 // ─── Per-Agent Credential Resolver ───
 // Merges an agent's personal credentials with global settings.
 // Priority: Agent credentials → Agent model field → Global settings.
+// 
+// KEY DESIGN: The global Settings API key is the "company credit card" — used by
+// God-Agent and newly created agents by default. Each agent can have their own
+// personal Gemini API key (from their own Gmail account), which gives them their
+// own independent 5-hour quota. This multiplies the fleet's total API budget.
 export function resolveAgentSettings(agent: Agent | undefined, globalSettings: LLMSettings): LLMSettings {
   if (!agent?.credentials) return globalSettings;
 
@@ -27,14 +32,21 @@ export function resolveAgentSettings(agent: Agent | undefined, globalSettings: L
     }
   }
 
+  // Determine provider: respect 'auto' (Smart Router) even if agent has personal key
+  // If the global setting is 'auto', keep it as 'auto' — the Smart Router will decide.
+  // If the global setting is 'gemini' or 'ollama', use the agent's key for that provider.
+  const resolvedProvider = globalSettings.provider; // Always respect global routing strategy
+  const hasPersonalKey = !!creds.geminiApiKey;
+
   return {
-    provider: creds.geminiApiKey ? 'gemini' : globalSettings.provider,
+    provider: resolvedProvider,
     geminiApiKey: creds.geminiApiKey || globalSettings.geminiApiKey,
     geminiModel: creds.geminiModel || agent.model || globalSettings.geminiModel,
     ollamaBaseUrl: creds.ollamaBaseUrl || globalSettings.ollamaBaseUrl,
     ollamaModel: creds.ollamaModel || agent.model || globalSettings.ollamaModel,
     autoHeal: globalSettings.autoHeal,
     usage: globalSettings.usage,
+    _keySource: hasPersonalKey ? 'personal' : 'global',
   };
 }
 
@@ -181,6 +193,7 @@ export const getUnifiedCodeAnalysis = async (settings: LLMSettings, code: string
         agentId: 'system', agentName: 'Sandbox',
         provider: 'gemini', requestedProvider: settings.provider,
         routedBy: settings.provider === 'auto' ? 'smart_router' : 'user',
+        keySource: settings._keySource || 'global',
         purpose: 'sandbox_analysis', outcome: 'success',
         promptLength: code.length, responseLength: JSON.stringify(result).length,
         productive: true, description: `Sandbox code analysis (${code.length} chars)`,
@@ -193,6 +206,7 @@ export const getUnifiedCodeAnalysis = async (settings: LLMSettings, code: string
           agentId: 'system', agentName: 'Sandbox',
           provider: 'gemini', requestedProvider: settings.provider,
           routedBy: settings.provider === 'auto' ? 'smart_router' : 'user',
+          keySource: settings._keySource || 'global',
           purpose: 'sandbox_analysis', outcome: 'failed_429',
           promptLength: code.length, responseLength: 0,
           productive: false, description: `Sandbox analysis FAILED (429/rate limit)`,
@@ -297,6 +311,7 @@ export const getUnifiedChatResponse = async (
         agentId: agentName, agentName,
         provider: 'gemini', requestedProvider: settings.provider,
         routedBy: settings.provider === 'auto' ? 'smart_router' : 'user',
+        keySource: settings._keySource || 'global',
         purpose, outcome: 'success',
         promptLength: message.length + systemContext.length,
         responseLength: response.length,
@@ -311,6 +326,7 @@ export const getUnifiedChatResponse = async (
           agentId: agentName, agentName,
           provider: 'gemini', requestedProvider: settings.provider,
           routedBy: settings.provider === 'auto' ? 'smart_router' : 'user',
+          keySource: settings._keySource || 'global',
           purpose: 'unknown', outcome: 'failed_429',
           promptLength: message.length, responseLength: 0,
           productive: false, description: `${agentName}: FAILED 429 rate limit`,

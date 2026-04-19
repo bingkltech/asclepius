@@ -96,7 +96,8 @@ export function Settings({ settings, onSettingsChange }: SettingsProps) {
         <div className="px-5 py-4 border-b border-border/20">
           <h3 className="text-sm font-semibold">LLM Provider</h3>
           <p className="text-[11px] text-muted-foreground/50 mt-0.5">
-            Choose between Gemini API and your local Ollama instance.
+            Global provider routing. This API key is used by God-Agent and new agents by default.
+            Each agent can override with their own key in Agent Config → Credentials.
           </p>
         </div>
         <div className="p-5 space-y-6">
@@ -204,11 +205,8 @@ export function Settings({ settings, onSettingsChange }: SettingsProps) {
                   className="bg-secondary/30 border-border/50 text-xs"
                 />
                 <p className="text-[9px] text-muted-foreground/40">
-                  If left empty, the system uses the{" "}
-                  <code className="bg-secondary/60 px-1 py-0.5 rounded text-violet-400 text-[8px]">
-                    GEMINI_API_KEY
-                  </code>{" "}
-                  environment variable.
+                  This is the <strong className="text-amber-400">company credit card</strong>. Used by God-Agent
+                  and any agent without a personal key. Per-agent keys are set in Agent Config → Credentials tab.
                 </p>
               </div>
             </div>

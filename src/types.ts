@@ -366,6 +366,7 @@ export interface LLMSettings {
   geminiApiKey?: string;
   autoHeal?: boolean;
   usage?: LLMUsageStats;
+  _keySource?: 'personal' | 'global'; // Internal metadata for budget tracking
 }
 
 // ─── Chat Message ───

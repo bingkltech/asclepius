@@ -29,6 +29,7 @@ export interface APICallRecord {
   provider: 'gemini' | 'ollama';      // Which provider actually handled it
   requestedProvider: 'gemini' | 'ollama' | 'auto';  // What was requested
   routedBy: 'user' | 'smart_router';  // Who decided the provider
+  keySource: 'personal' | 'global';   // Agent's own API key vs company credit card
   purpose: CallPurpose;
   outcome: CallOutcome;
   promptLength: number;                // Characters sent
@@ -138,6 +139,10 @@ export function generateBudgetSummary(sinceHoursAgo: number = 5): BudgetSummary 
     callsByAgent[r.agentName] = (callsByAgent[r.agentName] || 0) + 1;
   });
 
+  // Key source breakdown
+  const personalKeyCalls = records.filter(r => r.keySource === 'personal' && r.provider === 'gemini').length;
+  const globalKeyCalls = records.filter(r => r.keySource === 'global' && r.provider === 'gemini').length;
+
   const efficiencyScore = records.length > 0
     ? Math.round((productiveCalls / records.length) * 100)
     : 100;
@@ -175,6 +180,7 @@ export function generateBudgetSummary(sinceHoursAgo: number = 5): BudgetSummary 
 /** Format the budget summary as a text block for injection into the God-Agent prompt */
 export function formatBudgetReportForAgent(): string {
   const summary = generateBudgetSummary(5); // Last 5 hours (one Gemini refresh cycle)
+  const records = getAPIRecords(5); // Get raw records for key source breakdown
 
   if (summary.totalCalls === 0) {
     return `═══ API BUDGET REPORT (Last 5hrs) ═══\nNo API calls recorded. System is idle. Budget: 100% preserved.`;
@@ -190,10 +196,17 @@ export function formatBudgetReportForAgent(): string {
     .map(([agent, count]) => `  ${agent}: ${count} calls`)
     .join('\n');
 
+  const globalKeyCount = records.filter(r => r.keySource === 'global' && r.provider === 'gemini').length;
+  const personalKeyCount = records.filter(r => r.keySource === 'personal' && r.provider === 'gemini').length;
+
   return `═══ API BUDGET REPORT (Last 5hrs) ═══
 EFFICIENCY: ${summary.efficiencyScore}%
 Total Calls: ${summary.totalCalls} | Gemini: ${summary.geminiCalls} | Ollama: ${summary.ollamaCalls}
 Productive: ${summary.productiveCalls} | Wasted: ${summary.wastedCalls} | 429 Errors: ${summary.failed429Count}
+
+API Key Usage (Gemini only):
+  Company Card (Global): ${globalKeyCount} calls
+  Personal Agent Keys: ${personalKeyCount} calls
 
 Calls by Purpose:
 ${purposeLines}
