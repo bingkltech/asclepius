@@ -4,28 +4,21 @@
  */
 
 import { useState, useRef, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, User, TerminalSquare, Bot, Settings2, Cpu, Globe, RefreshCw, ShieldCheck, ShieldAlert, Zap, ZapOff, Loader2, GitBranch, GitMerge, GitPullRequest, Github } from "lucide-react";
-import { getUnifiedChatResponse, getUnifiedCodeAnalysis, testConnection, getGeminiRefreshInfo, resolveAgentSettings, trackAgentQuota } from "@/src/services/llm";
-import { listOllamaModels, OllamaModel } from "@/src/services/ollama";
+import { ShieldCheck, Zap, ZapOff, Loader2, GitBranch, GitMerge, GitPullRequest, Github } from "lucide-react";
+import { getUnifiedChatResponse, getUnifiedCodeAnalysis, getGeminiRefreshInfo, resolveAgentSettings } from "@/src/services/llm";
+import { listOllamaModels } from "@/src/services/ollama";
 import { julesSubmitTask, julesPollTask, julesCancelTask, getJulesTasks, JulesTask } from "@/src/services/jules";
-import { addKnowledge, saveSkillScript, searchKnowledge, getVaultStats, recordEpisode, getSystemLogs, db } from "@/src/services/neuralVault";
+import { addKnowledge, saveSkillScript, searchKnowledge, recordEpisode, getSystemLogs, db } from "@/src/services/neuralVault";
 import { useLiveQuery } from "dexie-react-hooks";
-import { listBranches, getStatus, mergeBranch, checkoutBranch, getConflicts } from "@/src/services/gitOps";
+import { listBranches, getStatus, mergeBranch, getConflicts } from "@/src/services/gitOps";
 import { openInDesktop } from "@/src/services/githubDesktop";
 import { formatBudgetReportForAgent } from "@/src/services/apiBudget";
-import { ChatMessage, SystemLogEntry, LLMSettings, Agent, AgentSkill, LLMProvider, SKILL_XP_TABLE, SKILL_LEVEL_NAMES, Project, GoalStatus, SandboxRun, createSkill } from "@/src/types";
+import { ChatMessage, SystemLogEntry, LLMSettings, Agent, AgentSkill, SKILL_LEVEL_NAMES, Project, GoalStatus, SandboxRun, createSkill } from "@/src/types";
 import { motion } from "motion/react";
 import ReactMarkdown from "react-markdown";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 interface CommandCenterProps {
@@ -55,11 +48,7 @@ export function CommandCenter({ settings, agents, onUpdateSettings, messages, se
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [defaultOllamaModel, setDefaultOllamaModel] = useState<string>("");
-  const [ollamaModels, setOllamaModels] = useState<OllamaModel[]>([]);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isTestingConnection, setIsTestingConnection] = useState(false);
   const logs = useLiveQuery(() => db.systemLogs.orderBy('timestamp').reverse().limit(10).toArray(), []) || [];
-  const [connectionStatus, setConnectionStatus] = useState<{ success: boolean; message: string } | null>(null);
   const [julesTasks, setJulesTasks] = useState<JulesTask[]>(() => getJulesTasks());
   const [gitStatus, setGitStatus] = useState<any>(null);
   const [gitBranches, setGitBranches] = useState<string[]>([]);
@@ -87,27 +76,14 @@ export function CommandCenter({ settings, agents, onUpdateSettings, messages, se
   const lastProcessedLogId = useRef<string | null>(null);
 
   const refreshModels = async () => {
-    setIsRefreshing(true);
     try {
       const models = await listOllamaModels(settings.ollamaBaseUrl);
-      setOllamaModels(models);
       if (models.length > 0 && !defaultOllamaModel) {
         setDefaultOllamaModel(models[0].name);
       }
     } catch (error) {
       console.error("Failed to fetch Ollama models:", error);
-    } finally {
-      setIsRefreshing(false);
     }
-  };
-
-  const handleTestConnection = async () => {
-    setIsTestingConnection(true);
-    setConnectionStatus(null);
-    const result = await testConnection(settings);
-    setConnectionStatus(result);
-    setIsTestingConnection(false);
-    trackUsage();
   };
 
   const handleMergeBranch = async (branch: string) => {
@@ -1371,7 +1347,6 @@ ${(() => {
             </Dialog>
           )}
 
-          {/* Duplicate Settings Dialog Removed */}
         </div>
       </div>
 
