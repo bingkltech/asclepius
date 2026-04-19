@@ -983,7 +983,17 @@ ${(() => {
         );
       }
       trackUsage();
-      trackAgentQuota(targetAgent); // Track per-agent personal quota
+      
+      // ─── Track Per-Agent Personal Quota & Persist ───
+      if (targetAgent.credentials) {
+        const updatedCreds = { ...targetAgent.credentials };
+        updatedCreds.quotaUsed = (updatedCreds.quotaUsed || 0) + 1;
+        if (!updatedCreds.lastQuotaReset) updatedCreds.lastQuotaReset = new Date().toISOString();
+        if (onUpdateAgent) {
+          onUpdateAgent({ ...targetAgent, credentials: updatedCreds });
+        }
+      }
+
       // Intercept and Execute AI Actions
       const actionBlocks = [...responseText.matchAll(/```json:action\n([\s\S]*?)```/g)];
       if (actionBlocks.length > 0) {
