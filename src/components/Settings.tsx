@@ -237,7 +237,10 @@ export function Settings({ settings, onSettingsChange }: SettingsProps) {
                             <div className="flex items-center justify-between w-full gap-4">
                               <span>{m.name}</span>
                               <span className="text-[9px] text-muted-foreground/40">
-                                {(m.size / 1024 / 1024 / 1024).toFixed(1)}GB
+                                {m.name.includes('cloud') || m.size < 1048576 
+                                  ? '☁️ Cloud' 
+                                  : `${(m.size / 1024 / 1024 / 1024).toFixed(1)}GB`
+                                }
                               </span>
                             </div>
                           </SelectItem>
