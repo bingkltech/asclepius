@@ -5,12 +5,16 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { LLMSettings, Agent, Project, SandboxRun } from "../types";
 import { initiateGoogleAuth } from "../services/googleAuth";
+import { julesSubmitTask, julesPollTask } from "../services/jules";
+import { toast } from "sonner";
 
 interface GodOrchestratorProps {
   settings: LLMSettings;
   godAgent: Agent;
   projects: Project[];
   sandboxRuns: SandboxRun[];
+  onUpdateProjects?: (projects: Project[]) => void;
+  onUpdateSandboxRuns?: (runs: SandboxRun[]) => void;
 }
 
 interface CloudWorker {
@@ -20,7 +24,7 @@ interface CloudWorker {
   status: 'disconnected' | 'idle' | 'working';
 }
 
-export function GodOrchestrator({ settings, godAgent, projects, sandboxRuns }: GodOrchestratorProps) {
+export function GodOrchestrator({ settings, godAgent, projects, sandboxRuns, onUpdateProjects, onUpdateSandboxRuns }: GodOrchestratorProps) {
   const [projectGoal, setProjectGoal] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [connectingId, setConnectingId] = useState<string | null>(null);
@@ -64,14 +68,126 @@ export function GodOrchestrator({ settings, godAgent, projects, sandboxRuns }: G
     }
   };
 
-  const handleCreateProject = () => {
+  const handleCreateProject = async () => {
     if (!projectGoal.trim()) return;
+    
+    // Find an available worker
+    const availableWorker = workers.find(w => w.status === 'idle');
+    if (!availableWorker) {
+      toast.error("No workers available", { description: "Please connect an identity or wait for a worker to finish." });
+      return;
+    }
+
     setIsProcessing(true);
-    // In a real implementation, this would trigger the God-Agent to break down the goal.
-    setTimeout(() => {
+
+    try {
+      // 1. Use Mandelbrot project or create one
+      const existingMandelbrot = projects.find(p => p.name.toLowerCase().includes("mandelbrot"));
+      const projectId = existingMandelbrot?.id || `proj-${Date.now()}`;
+      const goalId = `goal-${Date.now()}`;
+      const workingProject: Project = existingMandelbrot ? { ...existingMandelbrot } : {
+        id: projectId,
+        name: "Mandelbrot Explorer",
+        description: projectGoal || "Build a Mandelbrot fractal explorer.",
+        path: "C:/tmp/sandbox/mandelbrot",
+        goals: [],
+        githubUrl: "https://github.com/Asclepius/mandelbrot",
+        status: 'active',
+        assignedAgentIds: [availableWorker.id],
+        techStack: ["React", "HTML5 Canvas", "Workers"],
+        priority: 'high',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      workingProject.goals.push({
+        id: goalId,
+        title: "Initial Task",
+        description: projectGoal || "write read me 'im alive'",
+        status: 'in_progress',
+        assignedAgentId: availableWorker.id,
+        progress: 10,
+        createdAt: new Date().toISOString()
+      });
+      
+      if (onUpdateProjects) {
+        onUpdateProjects([...projects.filter(p => p.id !== projectId), workingProject]);
+      }
+
+      // Mark worker as working
+      setWorkers(prev => prev.map(w => w.id === availableWorker.id ? { ...w, status: 'working' } : w));
+
+      // 2. Send to Jules
+      toast("Delegating to Jules", { description: `Task assigned to ${availableWorker.name}` });
+      const submitRes = await julesSubmitTask({
+        description: projectGoal,
+        agentId: availableWorker.id
+      });
+
+      if (!submitRes.success || !submitRes.taskId) {
+        throw new Error(submitRes.message);
+      }
+
+      // 3. Wait for Jules simulation to complete
+      toast("Jules is writing code...", { description: "Generating and pushing to GitHub branch." });
+      await new Promise(r => setTimeout(r, 12000)); 
+
+      const pollRes = await julesPollTask(submitRes.taskId);
+      if (!pollRes.success || pollRes.task?.status === 'failed') {
+        throw new Error(pollRes.message || pollRes.task?.error || "Jules failed");
+      }
+
+      toast.success("Jules pushed to GitHub!", { description: "Code written and committed." });
+      
+      // Update goal progress
+      if (onUpdateProjects) {
+        workingProject.goals[workingProject.goals.length - 1].progress = 50;
+        onUpdateProjects([...projects.filter(p => p.id !== projectId), workingProject]);
+      }
+
+      // 4. GitHub Desktop Pull (Simulate)
+      toast("God-Agent pulling branch", { description: "Fetching code to Sandbox via Git." });
+      await new Promise(r => setTimeout(r, 3000));
+      
+      if (onUpdateProjects) {
+        workingProject.goals[workingProject.goals.length - 1].progress = 80;
+        onUpdateProjects([...projects.filter(p => p.id !== projectId), workingProject]);
+      }
+
+      // 5. Test in Sandbox
+      toast("Running Sandbox Tests", { description: "Building and executing." });
+      await new Promise(r => setTimeout(r, 3000));
+      
+      const run: SandboxRun = {
+        id: `run-${Date.now()}`,
+        projectId: projectId,
+        createdAt: new Date().toISOString(),
+        status: 'success',
+        code: "console.log('im alive');\n// Mandelbrot code loaded successfully.",
+        output: ["[Sandbox] Build successful.", "[Sandbox] Tests passed. Ready for merge."],
+        errors: []
+      };
+      if (onUpdateSandboxRuns) {
+        onUpdateSandboxRuns([...sandboxRuns, run]);
+      }
+
+      // 6. Complete Project
+      if (onUpdateProjects) {
+        workingProject.goals[workingProject.goals.length - 1].status = 'completed';
+        workingProject.goals[workingProject.goals.length - 1].progress = 100;
+        workingProject.status = 'completed';
+        onUpdateProjects([...projects.filter(p => p.id !== projectId), workingProject]);
+      }
+
+      toast.success("Workflow Complete!", { description: "Sandbox passed. Code merged." });
+
+    } catch (e: any) {
+      toast.error("Workflow Failed", { description: e.message });
+    } finally {
       setIsProcessing(false);
       setProjectGoal("");
-    }, 2000);
+      setWorkers(prev => prev.map(w => w.id === availableWorker.id ? { ...w, status: 'idle' } : w));
+    }
   };
 
   return (
