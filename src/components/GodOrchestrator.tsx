@@ -21,6 +21,8 @@ interface CloudWorker {
   id: string;
   name: string;
   email: string;
+  apiEndpoint: string;
+  refreshToken: string;
   status: 'disconnected' | 'idle' | 'working';
 }
 
@@ -32,9 +34,9 @@ export function GodOrchestrator({ settings, godAgent, projects, sandboxRuns, onU
   const [expandedWorkerId, setExpandedWorkerId] = useState<string | null>(null);
 
   const [workers, setWorkers] = useState<CloudWorker[]>([
-    { id: 'worker-1', name: 'Jules Worker 1', email: 'asclepius.coo.agent@gmail.com', status: 'disconnected' },
-    { id: 'worker-2', name: 'Jules Worker 2', email: 'asclepius.worker.2@gmail.com', status: 'disconnected' },
-    { id: 'worker-3', name: 'Jules Worker 3', email: 'asclepius.worker.3@gmail.com', status: 'disconnected' },
+    { id: 'worker-1', name: 'Jules Worker 1', email: 'asclepius.coo.agent@gmail.com', apiEndpoint: 'wss://jules.google.com/api/v1/sandbox/worker-1', refreshToken: '', status: 'disconnected' },
+    { id: 'worker-2', name: 'Jules Worker 2', email: 'asclepius.worker.2@gmail.com', apiEndpoint: 'wss://jules.google.com/api/v1/sandbox/worker-2', refreshToken: '', status: 'disconnected' },
+    { id: 'worker-3', name: 'Jules Worker 3', email: 'asclepius.worker.3@gmail.com', apiEndpoint: 'wss://jules.google.com/api/v1/sandbox/worker-3', refreshToken: '', status: 'disconnected' },
   ]);
 
   const activeProject = projects.find(p => p.status === 'active') || projects[0];
@@ -122,7 +124,7 @@ export function GodOrchestrator({ settings, godAgent, projects, sandboxRuns, onU
       const submitRes = await julesSubmitTask({
         description: projectGoal,
         agentId: availableWorker.id
-      });
+      }, availableWorker.refreshToken, availableWorker.apiEndpoint);
 
       if (!submitRes.success || !submitRes.taskId) {
         throw new Error(submitRes.message);
@@ -132,7 +134,7 @@ export function GodOrchestrator({ settings, godAgent, projects, sandboxRuns, onU
       toast("Jules is writing code...", { description: "Generating and pushing to GitHub branch." });
       await new Promise(r => setTimeout(r, 12000)); 
 
-      const pollRes = await julesPollTask(submitRes.taskId);
+      const pollRes = await julesPollTask(submitRes.taskId, availableWorker.refreshToken, availableWorker.apiEndpoint);
       if (!pollRes.success || pollRes.task?.status === 'failed') {
         throw new Error(pollRes.message || pollRes.task?.error || "Jules failed");
       }
@@ -270,7 +272,8 @@ export function GodOrchestrator({ settings, godAgent, projects, sandboxRuns, onU
                               <Network className="w-3 h-3" /> Jules API Endpoint
                             </label>
                             <Input 
-                              defaultValue={`wss://jules.google.com/api/v1/sandbox/${worker.id}`}
+                              value={worker.apiEndpoint}
+                              onChange={(e) => setWorkers(prev => prev.map(w => w.id === worker.id ? { ...w, apiEndpoint: e.target.value } : w))}
                               className="h-7 text-[10px] bg-secondary/20 font-mono"
                               readOnly={worker.status !== 'disconnected'}
                             />
@@ -292,6 +295,8 @@ export function GodOrchestrator({ settings, godAgent, projects, sandboxRuns, onU
                             </label>
                             <Input 
                               type="password"
+                              value={worker.refreshToken}
+                              onChange={(e) => setWorkers(prev => prev.map(w => w.id === worker.id ? { ...w, refreshToken: e.target.value } : w))}
                               placeholder="1//04_xxxxx_xxxxx"
                               className="h-7 text-[10px] bg-secondary/20 font-mono"
                               readOnly={worker.status !== 'disconnected'}

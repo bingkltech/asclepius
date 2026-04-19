@@ -106,7 +106,8 @@ function upsertTask(task: JulesTask): void {
  */
 export async function julesSubmitTask(
   payload: JulesSubmitPayload,
-  apiKey?: string
+  apiKey?: string,
+  apiEndpoint?: string
 ): Promise<JulesSubmitResult> {
   const taskId = `jules-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -119,8 +120,10 @@ export async function julesSubmitTask(
       headers["Authorization"] = `Bearer ${apiKey}`;
     }
 
-    // Try the local Vite proxy first (avoids CORS), then direct
-    const endpoints = ["/api/jules/submit", "https://jules.google.com/api/v1/tasks"];
+    // Use custom endpoint if provided, otherwise fallback to local/proxy
+    const endpoints = apiEndpoint 
+      ? [apiEndpoint.replace('wss://', 'https://')] // force https for fetch
+      : ["/api/jules/submit", "https://jules.google.com/api/v1/tasks"];
 
     for (const endpoint of endpoints) {
       try {
@@ -191,7 +194,8 @@ export async function julesSubmitTask(
  */
 export async function julesPollTask(
   taskId: string,
-  apiKey?: string
+  apiKey?: string,
+  apiEndpoint?: string
 ): Promise<JulesPollResult> {
   // First check local cache
   const localTask = loadTasks().find((t) => t.id === taskId);
@@ -209,10 +213,12 @@ export async function julesPollTask(
     const headers: Record<string, string> = {};
     if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
 
-    const endpoints = [
-      `/api/jules/status/${taskId}`,
-      `https://jules.google.com/api/v1/tasks/${taskId}`,
-    ];
+    const endpoints = apiEndpoint
+      ? [`${apiEndpoint.replace('wss://', 'https://')}/status/${taskId}`]
+      : [
+          `/api/jules/status/${taskId}`,
+          `https://jules.google.com/api/v1/tasks/${taskId}`,
+        ];
 
     for (const endpoint of endpoints) {
       try {
