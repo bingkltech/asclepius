@@ -128,6 +128,7 @@ const INITIAL_AGENTS: Agent[] = [
       authStatus: "unauthenticated",
       google: { scopes: [], quotaUsed: 0 },
       github: { scope: [], isConnected: false },
+      geminiApiKey: "",
       geminiModel: "gemini-3.1-pro-preview",
       ollamaModel: "gemma4:e4b",
       ollamaBaseUrl: "http://localhost:11434",
@@ -178,6 +179,7 @@ const INITIAL_AGENTS: Agent[] = [
       authStatus: "unauthenticated",
       google: { scopes: [], quotaUsed: 0 },
       github: { scope: [], isConnected: false },
+      geminiApiKey: "",
       geminiModel: "gemini-3.1-flash-lite-preview",
       ollamaModel: "gemma4:e4b",
       ollamaBaseUrl: "http://localhost:11434",
@@ -298,7 +300,18 @@ export default function App() {
             authStatus: 'unauthenticated' as const,
             google: (creds as any).google || { scopes: [], quotaUsed: 0 },
             github: (creds as any).github || { scope: [], isConnected: false },
+            geminiApiKey: creds.geminiApiKey || "",
           },
+        };
+      }
+      // Even if authStatus exists, ensure geminiApiKey is present
+      if (creds && typeof creds.geminiApiKey === 'undefined') {
+        return {
+          ...agent,
+          credentials: {
+            ...creds,
+            geminiApiKey: "",
+          }
         };
       }
       return agent;
