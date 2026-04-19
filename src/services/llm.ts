@@ -281,44 +281,36 @@ export const getUnifiedChatResponse = async (
   let routedProvider = settings.provider;
   
   if (routedProvider === 'auto') {
-    // Cognitive Load Balancer Rules:
-    const contentToAnalyze = (message + " " + systemContext).toLowerCase();
+    // Cognitive Load Balancer: Only analyze the USER'S message, NOT the systemContext.
+    const contentToAnalyze = message.toLowerCase();
     
-    // 1. Context Size Trigger: If the prompt is massive, route to Gemini.
-    if (contentToAnalyze.length > 5000) {
+    if (contentToAnalyze.includes("error") || contentToAnalyze.includes("failed") || contentToAnalyze.includes("bug") || contentToAnalyze.includes("critical") || contentToAnalyze.includes("exception")) {
       routedProvider = 'gemini';
-    } 
-    // 2. Error/Bug Trigger: If dealing with stack traces or sandbox failures, route to Gemini.
-    else if (contentToAnalyze.includes("error") || contentToAnalyze.includes("failed") || contentToAnalyze.includes("bug") || contentToAnalyze.includes("critical") || contentToAnalyze.includes("exception")) {
+    } else if (message.length > 500) {
       routedProvider = 'gemini';
-    } 
-    // 3. Learning/Audit Trigger: If God-Agent is doing an audit, route to Gemini.
-    else if (contentToAnalyze.includes("[system_audit_due]")) {
+    } else if (contentToAnalyze.includes("[system_audit_due]")) {
       routedProvider = 'gemini';
-    }
-    // Default to cheap local Ollama for routine tasks
-    else {
+    } else {
       routedProvider = 'ollama';
     }
   }
 
   const limitInfo = getGeminiRefreshInfo();
-  const useGemini = routedProvider === 'gemini' && !limitInfo.isLimited;
 
-  if (useGemini) {
+  // ─── Helper: Try Gemini ───
+  const tryGemini = async (): Promise<string | null> => {
+    if (!settings.geminiApiKey || limitInfo.isLimited) return null;
     try {
       const geminiHistory: Content[] = history.map(h => ({
         role: h.role === 'model' ? 'model' : 'user',
         parts: [{ text: h.content }]
       }));
       const response = await chatWithGeminiAgent(message, geminiHistory, systemInstruction, settings.geminiApiKey, settings.geminiModel);
-      // Determine purpose from context
-      let purpose: CallPurpose = 'unknown';
-      const ctx = (message + ' ' + systemContext).toLowerCase();
+      let purpose: CallPurpose = 'human_command';
+      const ctx = message.toLowerCase();
       if (ctx.includes('[system_audit_due]')) purpose = 'god_audit';
       else if (ctx.includes('error') || ctx.includes('failed') || ctx.includes('bug')) purpose = 'error_fix';
       else if (ctx.includes('perform task:')) purpose = 'scheduled_task';
-      else purpose = 'human_command';
       
       recordAPICall({
         agentId: agentName, agentName,
@@ -333,8 +325,7 @@ export const getUnifiedChatResponse = async (
       return response;
     } catch (error) {
       if (isFailoverCondition(error)) {
-        const state = setRateLimit();
-        const info = getGeminiRefreshInfo();
+        setRateLimit();
         recordAPICall({
           agentId: agentName, agentName,
           provider: 'gemini', requestedProvider: settings.provider,
@@ -344,49 +335,72 @@ export const getUnifiedChatResponse = async (
           promptLength: message.length, responseLength: 0,
           productive: false, description: `${agentName}: FAILED 429 rate limit`,
         });
-        console.warn(`[FALLBACK_INIT] Gemini disruption detected. Auto-switching to Ollama for ${info.timeLeft}.`);
-        // Fall through to Ollama below
-      } else {
-        throw error;
+        console.warn(`[FALLBACK_INIT] Gemini disruption detected.`);
       }
+      return null;
+    }
+  };
+
+  // ─── Helper: Try Ollama ───
+  const tryOllama = async (): Promise<string | null> => {
+    if (!settings.ollamaBaseUrl) return null;
+    try {
+      const ollamaHistory = history.map(h => ({
+        role: h.role === 'model' ? 'assistant' : 'user',
+        content: h.content
+      }));
+      ollamaHistory.push({ role: 'user', content: message });
+      
+      const response = await chatWithOllama(settings.ollamaBaseUrl, settings.ollamaModel, ollamaHistory, systemInstruction);
+      
+      let ollamaPurpose: CallPurpose = 'human_command';
+      const ctx = message.toLowerCase();
+      if (ctx.includes('perform task:')) ollamaPurpose = 'scheduled_task';
+      else if (ctx.includes('error') || ctx.includes('bug')) ollamaPurpose = 'error_fix';
+
+      recordAPICall({
+        agentId: agentName, agentName,
+        provider: 'ollama', requestedProvider: settings.provider,
+        routedBy: settings.provider === 'auto' ? 'smart_router' : 'user',
+        keySource: 'global',
+        purpose: ollamaPurpose, outcome: limitInfo.isLimited ? 'fallback_ollama' : 'success',
+        promptLength: message.length, responseLength: response.length,
+        productive: true, description: `${agentName} via Ollama: ${message.slice(0, 80)}`,
+      });
+
+      if (limitInfo.isLimited) {
+        return `*[⚡ Gemini rate-limited. Running on Ollama (${settings.ollamaModel}). Gemini refreshes in ${limitInfo.timeLeft}.]*\n\n${response}`;
+      }
+      return response;
+    } catch (ollamaError) {
+      console.warn(`[OLLAMA_FAIL] ${ollamaError instanceof Error ? ollamaError.message : 'Connection failed'}`);
+      return null;
+    }
+  };
+
+  // ─── Bidirectional Fallback: Try primary, then fallback to the other ───
+  let response: string | null = null;
+
+  if (routedProvider === 'gemini') {
+    // Primary: Gemini → Fallback: Ollama
+    response = await tryGemini();
+    if (response) return response;
+    
+    response = await tryOllama();
+    if (response) return response;
+  } else {
+    // Primary: Ollama → Fallback: Gemini (THE FIX)
+    response = await tryOllama();
+    if (response) return response;
+    
+    if (!limitInfo.isLimited && settings.geminiApiKey) {
+      console.warn('[FALLBACK_INIT] Ollama failed. Attempting Gemini as fallback.');
+      response = await tryGemini();
+      if (response) return `*[⚡ Ollama unavailable. Using Gemini as fallback.]*\n\n${response}`;
     }
   }
 
-  // Ollama path (primary or auto-fallback)
-  try {
-    const ollamaHistory = history.map(h => ({
-      role: h.role === 'model' ? 'assistant' : 'user',
-      content: h.content
-    }));
-    ollamaHistory.push({ role: 'user', content: message });
-    
-    const response = await chatWithOllama(settings.ollamaBaseUrl, settings.ollamaModel, ollamaHistory, systemInstruction);
-    
-    // Determine purpose for budget tracking
-    let ollamaPurpose: CallPurpose = 'unknown';
-    const ollamaCtx = (message + ' ' + systemContext).toLowerCase();
-    if (ollamaCtx.includes('perform task:')) ollamaPurpose = 'scheduled_task';
-    else if (ollamaCtx.includes('error') || ollamaCtx.includes('bug')) ollamaPurpose = 'error_fix';
-    else ollamaPurpose = 'human_command';
-
-    recordAPICall({
-      agentId: agentName, agentName,
-      provider: 'ollama', requestedProvider: settings.provider,
-      routedBy: settings.provider === 'auto' ? 'smart_router' : 'user',
-      keySource: 'global', // Ollama is always free/local
-      purpose: ollamaPurpose, outcome: limitInfo.isLimited ? 'fallback_ollama' : 'success',
-      promptLength: message.length, responseLength: response.length,
-      productive: true, description: `${agentName} via Ollama: ${message.slice(0, 80)}`,
-    });
-
-    if (limitInfo.isLimited) {
-      return `*[⚡ Gemini rate-limited. Running on Ollama (${settings.ollamaModel}). Gemini refreshes in ${limitInfo.timeLeft}.]*\n\n${response}`;
-    }
-    return response;
-  } catch (ollamaError) {
-    const refreshMsg = limitInfo.isLimited
-      ? `Gemini quota refreshes in ${limitInfo.timeLeft}.`
-      : "Gemini is available but was not selected.";
-    return `⚠️ **Both providers failed.**\n\n- **Ollama:** ${ollamaError instanceof Error ? ollamaError.message : "Connection failed."}\n- **Gemini:** ${refreshMsg}\n\nPlease ensure at least one provider is operational.`;
-  }
+  const ollamaStatus = settings.ollamaBaseUrl ? `Model "${settings.ollamaModel}" failed or timed out` : 'No Ollama URL configured';
+  const geminiStatus = limitInfo.isLimited ? `Quota exhausted (refreshes in ${limitInfo.timeLeft})` : (!settings.geminiApiKey ? 'No API key configured' : 'Failed');
+  return `⚠️ **Both providers failed.**\n\n- **Ollama:** ${ollamaStatus}\n- **Gemini:** ${geminiStatus}\n\nCheck: Is Ollama running? Is "${settings.ollamaModel}" available?`;
 };
