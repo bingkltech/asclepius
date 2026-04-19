@@ -247,19 +247,25 @@ export function CommandCenter({ settings, agents, onUpdateSettings, messages, se
   // Trigger C: Fiduciary Audit Timer (Every 4 Hours)
   useEffect(() => {
     const auditInterval = setInterval(() => {
-      if (onResumeAgent) {
-        onResumeAgent('god'); // Wake up God-Agent for audit
+      if (onAddTask) {
+        onAddTask({
+          agentId: "god",
+          description: "Perform Fiduciary Review. Review the API Budget Report in your context, issue corrections to the COO, and then go back to sleep.",
+          type: "once",
+          scheduledTime: new Date().toISOString(),
+          intervalMs: 0
+        });
         setMessages(prev => [...prev, {
           id: `audit-${Date.now()}`,
           role: "system",
           sender: "MONITOR",
-          content: "[SYSTEM AUDIT] Time for your Fiduciary Review. Wake up, review the API Budget Report in your context, issue corrections to the COO, and go back to sleep.",
+          content: "[SYSTEM AUDIT] Fiduciary Review added to Orchestrator Queue. God-Agent will process when Mutex lock is free.",
           timestamp: new Date().toLocaleTimeString()
         }]);
       }
     }, 4 * 60 * 60 * 1000); // 4 hours
     return () => clearInterval(auditInterval);
-  }, [onResumeAgent]);
+  }, [onAddTask]);
 
   // Proactive Error Detection (Trigger A: Auto-Heal)
   useEffect(() => {

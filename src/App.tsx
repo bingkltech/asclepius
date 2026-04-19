@@ -1131,7 +1131,8 @@ export default function App() {
       if (dueTask) {
         const currentAgents = agentsRef.current;
         const agent = currentAgents.find(a => a.id === dueTask.agentId);
-        if (agent && agent.status !== "paused") {
+        if (agent) {
+          // Autonomous tasks wake the agent from Tactical Hibernation
           autonomousCallCountRef.current += 1;
           console.log(`[KILL_SWITCH] Autonomous call ${autonomousCallCountRef.current}/${MAX_AUTONOMOUS_CALLS_PER_HOUR} (task: ${dueTask.description})`);
           await executeSequentialTurn(agent, "task", dueTask);
