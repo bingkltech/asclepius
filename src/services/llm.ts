@@ -237,6 +237,15 @@ export const getUnifiedCodeAnalysis = async (settings: LLMSettings, code: string
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const result = JSON.parse(jsonMatch[0]);
+      recordAPICall({
+        agentId: 'system', agentName: 'Sandbox',
+        provider: 'ollama', requestedProvider: settings.provider,
+        routedBy: settings.provider === 'auto' ? 'smart_router' : 'user',
+        keySource: 'global', // Ollama is always free/local
+        purpose: 'sandbox_analysis', outcome: limitInfo.isLimited ? 'fallback_ollama' : 'success',
+        promptLength: code.length, responseLength: response.length,
+        productive: true, description: `Sandbox analysis via Ollama (${code.length} chars)`,
+      });
       if (limitInfo.isLimited) {
         result.explanation = `*[⚡ Gemini rate-limited. Using Ollama (${settings.ollamaModel}). Gemini refreshes in ${limitInfo.timeLeft}.]*\n\n` + result.explanation;
       }
@@ -349,6 +358,23 @@ export const getUnifiedChatResponse = async (
     
     const response = await chatWithOllama(settings.ollamaBaseUrl, settings.ollamaModel, ollamaHistory, systemInstruction);
     
+    // Determine purpose for budget tracking
+    let ollamaPurpose: CallPurpose = 'unknown';
+    const ollamaCtx = (message + ' ' + systemContext).toLowerCase();
+    if (ollamaCtx.includes('perform task:')) ollamaPurpose = 'scheduled_task';
+    else if (ollamaCtx.includes('error') || ollamaCtx.includes('bug')) ollamaPurpose = 'error_fix';
+    else ollamaPurpose = 'human_command';
+
+    recordAPICall({
+      agentId: agentName, agentName,
+      provider: 'ollama', requestedProvider: settings.provider,
+      routedBy: settings.provider === 'auto' ? 'smart_router' : 'user',
+      keySource: 'global', // Ollama is always free/local
+      purpose: ollamaPurpose, outcome: limitInfo.isLimited ? 'fallback_ollama' : 'success',
+      promptLength: message.length, responseLength: response.length,
+      productive: true, description: `${agentName} via Ollama: ${message.slice(0, 80)}`,
+    });
+
     if (limitInfo.isLimited) {
       return `*[⚡ Gemini rate-limited. Running on Ollama (${settings.ollamaModel}). Gemini refreshes in ${limitInfo.timeLeft}.]*\n\n${response}`;
     }
