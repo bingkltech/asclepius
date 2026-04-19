@@ -33,7 +33,7 @@ const menuItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "agents", label: "Agents", icon: Users },
   { id: "projects", label: "Projects", icon: FolderGit2 },
-  { id: "command", label: "Command Center", icon: TerminalSquare },
+  { id: "command", label: "God Orchestrator", icon: TerminalSquare },
   { id: "scheduler", label: "Task Scheduler", icon: Clock },
   { id: "sandbox", label: "Sandbox", icon: Boxes },
   { id: "chronicle", label: "Chronicle", icon: Brain },

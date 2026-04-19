@@ -8,7 +8,7 @@ import { Sidebar } from "./components/Sidebar";
 import { AgentCard } from "./components/AgentCard";
 import { LogViewer } from "./components/LogViewer";
 import { Sandbox } from "./components/Sandbox";
-import { CommandCenter } from "./components/CommandCenter";
+import { GodOrchestrator } from "./components/GodOrchestrator";
 import { ProjectsPage } from "./components/ProjectsPage";
 import { Chronicle } from "./components/Chronicle";
 import { Settings as SettingsPage } from "./components/Settings";
@@ -139,145 +139,6 @@ const INITIAL_AGENTS: Agent[] = [
     createdBy: "system",
     isProtected: true,
   },
-  {
-    id: "coo",
-    name: "COO-Agent",
-    role: "Chief Operating Officer",
-    status: "idle",
-    lastAction: "Orchestrating agent workflows",
-    health: 100,
-    capabilities: [
-      "Orchestration",
-      "Task Scheduling",
-      "Resource Management",
-      "System Analysis",
-    ],
-    skills: [
-      createSkill("Task Scheduling", "operations", 4, "Automated task planning and execution"),
-      createSkill("Resource Management", "operations", 4, "CPU/Memory/API allocation and optimization"),
-      createSkill("Workflow Design", "operations", 3, "Agent pipeline construction and optimization"),
-      createSkill("System Monitoring", "analysis", 3, "Health check, metric tracking, and anomaly detection"),
-      createSkill("Report Generation", "creative", 2, "Status reports, summaries, and dashboards"),
-      CORE_GIT_SKILLS.merge,
-      CORE_GIT_SKILLS.push,
-      CORE_GIT_SKILLS.pull,
-    ],
-    heartbeat: createHeartbeat(10000, 3),
-    budget: { dailyTokenLimit: 200000, dailyTokensUsed: 0, priority: "high", overage: "warn" },
-    reputation: { successRate: 100, totalTasks: 0, failedTasks: 0, trend: "stable" },
-    metrics: { cpu: 5, memory: 2048, latency: 15 },
-    provider: "ollama",
-    model: "gemma4",
-    julesConfig: {
-      enabled: true,
-      endpoint: "wss://jules.google.com/api/v1/sandbox/coo",
-      status: "connected",
-    },
-    credentials: {
-      email: "asclepius.coo.agent@gmail.com",
-      isAuthenticated: false,
-      authStatus: "unauthenticated",
-      google: { scopes: [], quotaUsed: 0 },
-      github: { scope: [], isConnected: false },
-      geminiApiKey: "",
-      geminiModel: "gemini-3.1-flash-lite-preview",
-      ollamaModel: "gemma4:e4b",
-      ollamaBaseUrl: "http://localhost:11434",
-      quotaUsed: 0,
-      quotaLimit: 1500,
-      lastQuotaReset: new Date().toISOString(),
-    },
-    createdBy: "system",
-    isProtected: true, // COO is protected — God can pause but not terminate
-  },
-  {
-    id: "a2",
-    name: "Jules-Bridge",
-    role: "Auth Orchestrator & Connection Health Monitor",
-    status: "working",
-    lastAction: "Monitoring fleet auth sessions",
-    health: 95,
-    capabilities: ["Auth Orchestration", "Token Management", "Connection Health"],
-    skills: [
-      createSkill("Auth Orchestration", "operations", 5, "OAuth lifecycle management for all fleet identities"),
-      createSkill("Token Management", "security", 4, "Secure token storage, refresh, and rotation"),
-      createSkill("Session Monitoring", "operations", 4, "Cloud connection health tracking and alerting"),
-      createSkill("API Integration", "engineering", 3, "REST/WebSocket API connections and management"),
-    ],
-    heartbeat: createHeartbeat(10000, 3),
-    budget: { dailyTokenLimit: 100000, dailyTokensUsed: 0, priority: "normal", overage: "block" },
-    reputation: { successRate: 95, totalTasks: 0, failedTasks: 0, trend: "stable" },
-    metrics: { cpu: 45, memory: 512, latency: 120 },
-    provider: "gemini",
-    model: "gemini-3.1-flash-lite-preview",
-    julesConfig: {
-      enabled: true,
-      endpoint: "wss://jules.google.com/api/v1/sandbox/bridge",
-      status: "syncing",
-    },
-    credentials: {
-      email: "asclepius.jules.bridge@gmail.com",
-      isAuthenticated: false,
-      authStatus: "unauthenticated",
-      google: { scopes: [], quotaUsed: 0 },
-      github: { scope: [], isConnected: false },
-      geminiModel: "gemini-3.1-flash-lite-preview",
-      ollamaModel: "gemma4:e4b",
-      ollamaBaseUrl: "http://localhost:11434",
-      quotaUsed: 0,
-      quotaLimit: 1500,
-      lastQuotaReset: new Date().toISOString(),
-    },
-    createdBy: "system",
-    isProtected: false,
-  },
-  {
-    id: "a3",
-    name: "Healer-01",
-    role: "Code Repair Specialist",
-    status: "learning",
-    lastAction: "Analyzing bug patterns",
-    health: 100,
-    capabilities: ["Code Analysis", "Refactoring", "Bug Detection"],
-    skills: [
-      createSkill("Bug Detection", "analysis", 5, "Finds bugs, logic errors, and edge cases in code"),
-      createSkill("Code Refactoring", "engineering", 4, "Restructures code for readability, performance, DRY"),
-      createSkill("Security Scanning", "security", 4, "Detects vulnerabilities: XSS, injection, auth flaws"),
-      createSkill("Performance Analysis", "analysis", 3, "Identifies bottlenecks and optimization opportunities"),
-      createSkill("Test Generation", "engineering", 3, "Creates unit, integration, and e2e test suites"),
-      createSkill("Documentation", "creative", 2, "Generates code documentation and API references"),
-      CORE_GIT_SKILLS.create_branch,
-      CORE_GIT_SKILLS.commit,
-      CORE_GIT_SKILLS.push,
-      CORE_GIT_SKILLS.pull,
-    ],
-    heartbeat: createHeartbeat(10000, 3),
-    budget: { dailyTokenLimit: 200000, dailyTokensUsed: 0, priority: "high", overage: "warn" },
-    reputation: { successRate: 100, totalTasks: 0, failedTasks: 0, trend: "stable" },
-    metrics: { cpu: 8, memory: 1024, latency: 30 },
-    provider: "gemini",
-    model: "gemini-3.1-pro-preview",
-    julesConfig: {
-      enabled: true,
-      endpoint: "wss://jules.google.com/api/v1/sandbox/healer",
-      status: "connected",
-    },
-    credentials: {
-      email: "asclepius.healer.01@gmail.com",
-      isAuthenticated: false,
-      authStatus: "unauthenticated",
-      google: { scopes: [], quotaUsed: 0 },
-      github: { scope: [], isConnected: false },
-      geminiModel: "gemini-3.1-pro-preview",
-      ollamaModel: "gemma4:e4b",
-      ollamaBaseUrl: "http://localhost:11434",
-      quotaUsed: 0,
-      quotaLimit: 1500,
-      lastQuotaReset: new Date().toISOString(),
-    },
-    createdBy: "system",
-    isProtected: false,
-  },
 ];
 
 export default function App() {
@@ -384,7 +245,7 @@ export default function App() {
         role: "system",
         sender: "CORE",
         content:
-          "COMMAND CENTER ONLINE. GOD-AGENT & COO-AGENT STANDING BY. \n\n**PROTOCOLS:**\n- GOD-MODE: `God-Agent: [COMMAND]` (Absolute Authority)\n- OPS-MODE: `COO-Agent: [COMMAND]` (Orchestration)\n- EVOLUTION: `/evolve` (Recursive Self-Improvement)\n- DIAGNOSTIC: `/analyze [CODE]`\n- LIFECYCLE: `/spawn`, `/terminate`, `/pause`, `/resume`\n- SKILLS: `/grant-skill`, `/revoke-skill`, `/evolve-agent`\n\nSYSTEM STATUS: NOMINAL. ALL HEARTBEATS ALIVE.",
+          "GOD-AGENT ORCHESTRATOR ONLINE. \n\n**PROTOCOLS:**\n- `[TASK_NAME]` (Direct execution via Jules)\n- EVOLUTION: `/evolve` (Recursive Self-Improvement)\n- LIFECYCLE: `/spawn` (Launch specialized cloud workers)\n\nSYSTEM STATUS: NOMINAL. EXTERNAL CLOUD WORKERS READY.",
         timestamp: new Date().toLocaleTimeString(),
       },
     ];
@@ -1713,24 +1574,11 @@ export default function App() {
         );
       case "command":
         return (
-          <CommandCenter
+          <GodOrchestrator
             settings={llmSettings}
-            agents={agents}
+            godAgent={agents.find(a => a.id === "god") || agents[0]}
             projects={projects}
-            onUpdateSettings={setLlmSettings}
-            messages={commandMessages}
-            setMessages={setCommandMessages}
-            onSpawnAgent={handleSpawnAgent}
-            onTerminateAgent={handleTerminateAgent}
-            onPauseAgent={handlePauseAgent}
-            onResumeAgent={handleResumeAgent}
-            onAddTask={handleAddTask}
-            onUpdateAgent={handleUpdateAgent}
-            onUpdateProjects={setProjects}
             sandboxRuns={sandboxRuns}
-            onUpdateSandboxRuns={setSandboxRuns}
-            activeProjectId={activeProjectId}
-            activeTokenAgentId={activeTokenAgentId}
           />
         );
       case "scheduler":
