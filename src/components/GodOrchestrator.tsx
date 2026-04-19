@@ -24,6 +24,7 @@ export function GodOrchestrator({ settings, godAgent, projects, sandboxRuns }: G
   const [projectGoal, setProjectGoal] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [connectingId, setConnectingId] = useState<string | null>(null);
+  const [editingEmailId, setEditingEmailId] = useState<string | null>(null);
 
   const [workers, setWorkers] = useState<CloudWorker[]>([
     { id: 'worker-1', name: 'Jules Worker 1', email: 'asclepius.coo.agent@gmail.com', status: 'disconnected' },
@@ -117,32 +118,52 @@ export function GodOrchestrator({ settings, godAgent, projects, sandboxRuns }: G
             <ScrollArea className="flex-1 -mx-2 px-2">
               <div className="space-y-3">
                 {workers.map((worker) => (
-                  <div key={worker.id} className="bg-secondary/20 border border-border/50 rounded-lg p-3 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Cpu className={worker.status === 'disconnected' ? "w-5 h-5 text-muted-foreground" : "w-5 h-5 text-sky-400"} />
-                      <div>
-                        <div className="text-xs font-semibold">{worker.name}</div>
-                        <div className="text-[10px] text-muted-foreground">{worker.email} • {worker.status}</div>
+                  <div key={worker.id} className="bg-secondary/20 border border-border/50 rounded-lg p-3 flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Cpu className={worker.status === 'disconnected' ? "w-5 h-5 text-muted-foreground" : "w-5 h-5 text-sky-400"} />
+                        <div>
+                          <div className="text-xs font-semibold">{worker.name}</div>
+                          {editingEmailId === worker.id ? (
+                            <div className="flex items-center gap-2 mt-1">
+                              <Input 
+                                value={worker.email}
+                                onChange={(e) => setWorkers(prev => prev.map(w => w.id === worker.id ? { ...w, email: e.target.value } : w))}
+                                className="h-6 text-[10px] w-48 bg-background"
+                                onKeyDown={(e) => { if (e.key === 'Enter') setEditingEmailId(null); }}
+                                autoFocus
+                                onBlur={() => setEditingEmailId(null)}
+                              />
+                            </div>
+                          ) : (
+                            <div 
+                              className="text-[10px] text-muted-foreground cursor-pointer hover:text-sky-400 transition-colors"
+                              onClick={() => { if(worker.status === 'disconnected') setEditingEmailId(worker.id); }}
+                            >
+                              {worker.email} • {worker.status}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    {worker.status === 'disconnected' ? (
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="h-7 text-[10px]"
-                        onClick={() => handleConnectWorker(worker.id)}
-                        disabled={connectingId === worker.id}
-                      >
-                        {connectingId === worker.id ? "Connecting..." : "Connect"}
-                      </Button>
-                    ) : (
-                      <span className="relative flex h-2 w-2">
-                        {worker.status === 'working' && (
+                      {worker.status === 'disconnected' ? (
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="h-7 text-[10px]"
+                          onClick={() => handleConnectWorker(worker.id)}
+                          disabled={connectingId === worker.id}
+                        >
+                          {connectingId === worker.id ? "Connecting..." : "Connect"}
+                        </Button>
+                      ) : (
+                        <span className="relative flex h-2 w-2">
+                          {worker.status === 'working' && (
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
                         )}
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500"></span>
                       </span>
                     )}
+                    </div>
                   </div>
                 ))}
               </div>
