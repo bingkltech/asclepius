@@ -244,7 +244,24 @@ export function CommandCenter({ settings, agents, onUpdateSettings, messages, se
     refreshModels();
   }, [settings.ollamaBaseUrl]);
 
-  // Proactive Error Detection
+  // Trigger C: Fiduciary Audit Timer (Every 4 Hours)
+  useEffect(() => {
+    const auditInterval = setInterval(() => {
+      if (onResumeAgent) {
+        onResumeAgent('god'); // Wake up God-Agent for audit
+        setMessages(prev => [...prev, {
+          id: `audit-${Date.now()}`,
+          role: "system",
+          sender: "MONITOR",
+          content: "[SYSTEM AUDIT] Time for your Fiduciary Review. Wake up, review the API Budget Report in your context, issue corrections to the COO, and go back to sleep.",
+          timestamp: new Date().toLocaleTimeString()
+        }]);
+      }
+    }, 4 * 60 * 60 * 1000); // 4 hours
+    return () => clearInterval(auditInterval);
+  }, [onResumeAgent]);
+
+  // Proactive Error Detection (Trigger A: Auto-Heal)
   useEffect(() => {
     if (!settings.autoHeal || logs.length === 0) return;
 
@@ -890,7 +907,13 @@ To RECALL knowledge about a topic:
 \`\`\`
 IMPORTANT: After solving any significant bug, architectural decision, or discovering a pattern, you SHOULD output a LEARN_WISDOM action to persist that knowledge. This makes you smarter over time.
 
-CRITICAL SLEEP PROTOCOL: If you are the God-Agent and you were woken up for a query or a special task, you MUST automatically return to Tactical Hibernation the moment your task is done. To auto-sleep, output exactly:
+CRITICAL SLEEP PROTOCOL & DELEGATION (EVENT-DRIVEN SENTINEL): 
+As the God-Agent, your default state is TACTICAL HIBERNATION. You must NEVER participate in routine execution loops.
+1. Define the architecture or review the situation.
+2. Delegate the actual work to the COO-Agent (or specialist agents).
+3. Immediately issue a PAUSE_AGENT command on yourself to conserve API budget.
+You will be automatically woken up by the system via Interrupts (Milestone Completion, System Errors, or Fiduciary Audits).
+To auto-sleep, output exactly:
 \`\`\`json:action
 { "type": "PAUSE_AGENT", "payload": { "agentId": "god" } }
 \`\`\`
@@ -1028,6 +1051,12 @@ ${(() => {
               const goal = proj?.goals.find(g => g.id === goalId);
               toast.success(`Milestone "${goal?.title || goalId}" updated to ${status}`);
               postSystemMessage("CORE", `[PROJECT] Milestone "${goal?.title}" in "${proj?.name}" → ${status.toUpperCase()}`);
+              
+              // TRIGGER B: Milestone Interrupt
+              if (status === "completed" && onResumeAgent) {
+                 onResumeAgent('god'); // Wake up God-Agent to review the completed milestone
+                 postSystemMessage("MONITOR", `[MILESTONE INTERRUPT] Milestone "${goal?.title}" is 100% complete. Waking God-Agent for review and next-phase authorization.`);
+              }
             } else if (action.type === "RESOLVE_ERROR" && onUpdateSandboxRuns) {
               const { runId, errorId } = action.payload;
               const updatedRuns = sandboxRuns.map(run => {
