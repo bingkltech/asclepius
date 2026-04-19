@@ -271,7 +271,7 @@ export function CommandCenter({ settings, agents, onUpdateSettings, messages, se
 
     // Prevent Millisecond Death Loops: Ignore API/System network errors, only heal real project code.
     const ignoredSources = ["system", "api_ledger", "monitor", "smart_router"];
-    if (ignoredSources.includes(latestLog.source.toLowerCase())) return;
+    if (ignoredSources.includes(latestLog.source.toLowerCase()) || latestLog.category === "api_ledger") return;
 
     if (latestLog.severity === 'error' || latestLog.message.toLowerCase().includes('error') || latestLog.message.toLowerCase().includes('failed')) {
       handleAutoHeal(latestLog);
