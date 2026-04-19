@@ -741,58 +741,59 @@ export function CommandCenter({ settings, agents, onUpdateSettings, messages, se
     };
     setMessages(prev => [...prev, actualUserMsg]);
 
-    // ─── Tier 3: Log Relevance Filtering ───
-    // Prioritize errors and recent logs, deprioritize repetitive [SCHEDULED] noise
-    const logs = await getSystemLogs(20);
-    const now = Date.now();
-    const errorLogs = logs.filter(l => l.severity === 'error' || l.message.toLowerCase().includes('error'));
-    const recentLogs60s = logs.filter(l => {
-      // Include logs from last 60 seconds (parse from toLocaleTimeString isn't precise, use index proximity)
-      return logs.indexOf(l) < 5;
-    });
-    const otherLogs = logs
-      .filter(l => !errorLogs.includes(l) && !recentLogs60s.includes(l))
-      .filter(l => !l.message.startsWith('[SCHEDULED]')) // Deprioritize scheduled task noise
-      .slice(0, 3);
-    const relevantLogs = [...new Set([...errorLogs.slice(0, 4), ...recentLogs60s, ...otherLogs])].slice(0, 10);
-    const recentLogsText = relevantLogs.map(l => `[${new Date(l.timestamp).toLocaleTimeString()}] ${l.source}: ${l.message}`).join("\n");
-    
-    // ─── Tier 2: Agent Context Compression (Ultra Compact for Local LLM speed) ───
-    const agentsContext = agents.map(a => `${a.name}(${a.role}): ${a.status}, Skills: ${a.skills.length}`).join(" | ");
+    // ─── PING MODE: Fast-path for simple messages (bandaid — revisit in future session) ───
+    // TODO(FUTURE): This ping mode is a temporary bandaid. Revisit the full context pipeline
+    // architecture to implement proper tiered context loading based on message intent classification.
+    // The current approach (skip context for short messages) works but is naive.
+    const isPingMode = actualMessage.length < 25 && 
+      !(/error|failed|bug|critical|fix|analyze|status|project|deploy|merge|review|spawn|evolve|audit/i.test(actualMessage));
 
-    const recentChatTranscript = messages.slice(-5).map(m => `[${m.timestamp}] ${m.sender}: ${m.content.slice(0, 100)}`).join("\n");
+    let systemContext: string;
+    let agentHistory: ChatMessage[];
 
-    // ─── Tier 4: Project Context Scoping (Compact) ───
-    const activeProjects = projects.filter(p => p.status === 'active');
-    const projectContext = activeProjects.length > 0 
-      ? activeProjects.map(p => `Project: ${p.name} [${p.status}]`).join(' | ') 
-      : 'No active projects.';
+    if (isPingMode) {
+      // Ping Mode: Minimal context — real LLM call (proves agent is alive) but skip expensive operations
+      systemContext = `You are ${targetAgent.name} (${targetAgent.role}). Respond briefly and naturally. You are online and operational.`;
+      agentHistory = messages.filter(m => m.role === 'user' || m.sender === targetAgent.name).slice(-2);
+    } else {
+      // Full Mode: Complete context for substantive requests
+      // ─── Tier 3: Log Relevance Filtering ───
+      const logs = await getSystemLogs(20);
+      const errorLogs = logs.filter(l => l.severity === 'error' || l.message.toLowerCase().includes('error'));
+      const recentLogs60s = logs.filter(l => logs.indexOf(l) < 5);
+      const otherLogs = logs
+        .filter(l => !errorLogs.includes(l) && !recentLogs60s.includes(l))
+        .filter(l => !l.message.startsWith('[SCHEDULED]'))
+        .slice(0, 3);
+      const relevantLogs = [...new Set([...errorLogs.slice(0, 4), ...recentLogs60s, ...otherLogs])].slice(0, 10);
+      const recentLogsText = relevantLogs.map(l => `[${new Date(l.timestamp).toLocaleTimeString()}] ${l.source}: ${l.message}`).join("\n");
+      
+      // ─── Tier 2: Agent Context Compression (Ultra Compact for Local LLM speed) ───
+      const agentsContext = agents.map(a => `${a.name}(${a.role}): ${a.status}, Skills: ${a.skills.length}`).join(" | ");
+      const recentChatTranscript = messages.slice(-5).map(m => `[${m.timestamp}] ${m.sender}: ${m.content.slice(0, 100)}`).join("\n");
 
-    const budgetReportText = await formatBudgetReportForAgent();
+      // ─── Tier 4: Project Context Scoping (Compact) ───
+      const activeProjects = projects.filter(p => p.status === 'active');
+      const projectContext = activeProjects.length > 0 
+        ? activeProjects.map(p => `Project: ${p.name} [${p.status}]`).join(' | ') 
+        : 'No active projects.';
 
-    const systemContext = `You are operating in the Command Center as the ${targetAgent.name}.
-    
-Available Agents & Their Skills:
-${agentsContext}
+      const budgetReportText = await formatBudgetReportForAgent();
 
-═══ ACTIVE PROJECTS ═══
-${projectContext}
-
-Recent System Activity Logs (filtered by relevance):
-${recentLogsText}
-
-Recent Global Chat Transcript (What other agents and the user have said):
-${recentChatTranscript}
+      systemContext = `You are operating in the Command Center as ${targetAgent.name}.
+Agents: ${agentsContext}
+Projects: ${projectContext}
+Logs: ${recentLogsText}
+Chat: ${recentChatTranscript}
 
 ${(() => {
   const recentRuns = sandboxRuns.slice(0, 2);
-  if (recentRuns.length === 0) return '═══ SANDBOX ═══\nNo test runs yet.';
-  const runsSummary = recentRuns.map(r => {
+  if (recentRuns.length === 0) return 'Sandbox: No test runs yet.';
+  return 'Sandbox: ' + recentRuns.map(r => {
     const proj = projects.find(p => p.id === r.projectId);
     const criticals = r.errors.filter(e => e.severity === 'critical').length;
     return `[${r.status.toUpperCase()}] ${proj ? proj.name : 'Unscoped'} — ${criticals} errors`;
-  }).join('\n');
-  return `═══ SANDBOX HEALTH ═══\nLast ${recentRuns.length} runs:\n${runsSummary}`;
+  }).join(' | ');
 })()}
 
 Your Role: ${targetAgent.id === 'god' ? 'CEO/System Architect (Self Code domain)' : 'Operations Agent (Project Code domain)'}
@@ -811,13 +812,11 @@ Jules Tasks: ${(() => {
   const julesTaskList = getJulesTasks().slice(0, 5);
   if (julesTaskList.length === 0) return 'None yet.';
   return julesTaskList.map(t => `${t.status}: "${t.description}"`).join(' | ');
-})()}
-`;
+})()}`;
 
-
-    // Filter history to ONLY this agent and User to keep Gemini's strict alternating format happy, 
-    // but the full transcript above ensures they are "hive-mind" aware.
-    const agentHistory = messages.filter(m => m.role === 'user' || m.sender === targetAgent.name);
+      // Cap history to last 6 messages to prevent Ollama context overflow
+      agentHistory = messages.filter(m => m.role === 'user' || m.sender === targetAgent.name).slice(-6);
+    }
 
     let responseText = "";
     try {

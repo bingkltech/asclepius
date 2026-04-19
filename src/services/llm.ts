@@ -282,24 +282,21 @@ export const getUnifiedChatResponse = async (
   
   if (routedProvider === 'auto') {
     // Cognitive Load Balancer Rules:
-    // CRITICAL: Only analyze the user's MESSAGE for routing, NOT the systemContext.
-    // The systemContext always contains words like "error", "critical", "failed" in its
-    // static tool documentation, which would cause EVERY message to route to Gemini.
-    const contentToAnalyze = message.toLowerCase();
+    const contentToAnalyze = (message + " " + systemContext).toLowerCase();
     
-    // 1. Error/Bug Trigger: If the USER is asking about errors or bugs, route to Gemini.
-    if (contentToAnalyze.includes("error") || contentToAnalyze.includes("failed") || contentToAnalyze.includes("bug") || contentToAnalyze.includes("critical") || contentToAnalyze.includes("exception")) {
+    // 1. Context Size Trigger: If the prompt is massive, route to Gemini.
+    if (contentToAnalyze.length > 5000) {
       routedProvider = 'gemini';
     } 
-    // 2. Complex Task Trigger: If the user message is long/complex, route to Gemini.
-    else if (message.length > 500) {
+    // 2. Error/Bug Trigger: If dealing with stack traces or sandbox failures, route to Gemini.
+    else if (contentToAnalyze.includes("error") || contentToAnalyze.includes("failed") || contentToAnalyze.includes("bug") || contentToAnalyze.includes("critical") || contentToAnalyze.includes("exception")) {
       routedProvider = 'gemini';
-    }
+    } 
     // 3. Learning/Audit Trigger: If God-Agent is doing an audit, route to Gemini.
     else if (contentToAnalyze.includes("[system_audit_due]")) {
       routedProvider = 'gemini';
     }
-    // Default to cheap local Ollama for routine tasks (greetings, status checks, simple questions)
+    // Default to cheap local Ollama for routine tasks
     else {
       routedProvider = 'ollama';
     }
