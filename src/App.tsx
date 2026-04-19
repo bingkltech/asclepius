@@ -1081,38 +1081,72 @@ export default function App() {
   // PERF: This is the brain of the sequential system. Instead of multiple intervals 
   // fighting for the CPU, this ONE loop manages the "Communication Token".
   // It alternates between executing Scheduled Tasks and random Simulation Activities.
+  //
+  // ⚡ KILL SWITCH: Caps autonomous LLM calls to prevent API quota drain.
+  // The counter resets when the human sends a message in the Command Center.
+  const autonomousCallCountRef = useRef(0);
+  const lastCallResetRef = useRef(Date.now());
+  const MAX_AUTONOMOUS_CALLS_PER_HOUR = 10;
+  const SIM_COOLDOWN_MS = 60000; // Simulation activity: once per minute max
+  const lastSimTimeRef = useRef(0);
+  const agentsRef = useRef(agents);
+  const activeTokenRef = useRef(activeTokenAgentId);
+  const scheduledTasksRef = useRef(scheduledTasks);
+
+  // Keep refs in sync with state (avoids useEffect dependency cascade)
+  useEffect(() => { agentsRef.current = agents; }, [agents]);
+  useEffect(() => { activeTokenRef.current = activeTokenAgentId; }, [activeTokenAgentId]);
+  useEffect(() => { scheduledTasksRef.current = scheduledTasks; }, [scheduledTasks]);
+
   useEffect(() => {
     const orchestratorInterval = setInterval(async () => {
       // 1. Skip if tab is hidden or an agent is already holding the token
-      if (!isTabVisibleRef.current || activeTokenAgentId) return;
+      if (!isTabVisibleRef.current || activeTokenRef.current) return;
 
-      const now = new Date();
+      // 2. KILL SWITCH: Reset counter every hour, enforce cap
+      const now = Date.now();
+      if (now - lastCallResetRef.current > 3600000) {
+        autonomousCallCountRef.current = 0;
+        lastCallResetRef.current = now;
+      }
+      if (autonomousCallCountRef.current >= MAX_AUTONOMOUS_CALLS_PER_HOUR) {
+        // Silently skip — waiting for human input or hourly reset
+        return;
+      }
 
-      // 2. CHECK FOR DUE TASKS (Priority 1)
-      const dueTask = scheduledTasks.find(t => 
-        t.status === "active" && new Date(t.scheduledTime) <= now
+      const nowDate = new Date();
+
+      // 3. CHECK FOR DUE TASKS (Priority 1)
+      const currentTasks = scheduledTasksRef.current;
+      const dueTask = currentTasks.find(t => 
+        t.status === "active" && new Date(t.scheduledTime) <= nowDate
       );
 
       if (dueTask) {
-        const agent = agents.find(a => a.id === dueTask.agentId);
+        const currentAgents = agentsRef.current;
+        const agent = currentAgents.find(a => a.id === dueTask.agentId);
         if (agent && agent.status !== "paused") {
+          autonomousCallCountRef.current += 1;
+          console.log(`[KILL_SWITCH] Autonomous call ${autonomousCallCountRef.current}/${MAX_AUTONOMOUS_CALLS_PER_HOUR} (task: ${dueTask.description})`);
           await executeSequentialTurn(agent, "task", dueTask);
           return; // Wait for next tick after turn completes
         }
       }
 
-      // 3. RANDOM SIMULATION ACTIVITY (Priority 2 - 30% chance per tick)
-      if (Math.random() > 0.7) {
-        const activeAgents = agents.filter(a => a.status !== "paused" && a.id !== "god");
+      // 4. SIMULATION ACTIVITY — Once per minute max, no LLM calls
+      if (now - lastSimTimeRef.current > SIM_COOLDOWN_MS) {
+        const currentAgents = agentsRef.current;
+        const activeAgents = currentAgents.filter(a => a.status !== "paused" && a.id !== "god");
         if (activeAgents.length > 0) {
           const randomAgent = activeAgents[Math.floor(Math.random() * activeAgents.length)];
+          lastSimTimeRef.current = now;
           await executeSequentialTurn(randomAgent, "sim");
         }
       }
     }, 5000); // Check for work every 5 seconds
 
     return () => clearInterval(orchestratorInterval);
-  }, [agents, scheduledTasks, activeTokenAgentId, llmSettings]);
+  }, [llmSettings]); // ← FIXED: Only re-create interval when LLM settings change, NOT on agent status changes
 
   /**
    * executeSequentialTurn: The atomic "turn" logic.
