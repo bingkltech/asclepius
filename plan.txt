@@ -1,5 +1,26 @@
-1. Import `Tooltip`, `TooltipTrigger`, `TooltipContent` from `@/components/ui/tooltip` and `Info` from `lucide-react` in `src/components/Settings.tsx`.
-2. Wrap `Gemini Model` and `Gemini API Key` labels with a `flex items-center gap-1.5` div, and append a `Tooltip` with contextual help.
-3. Enhance the `Input` for `Gemini Model` and `Gemini API Key` with immediate validation feedback (a `CheckCircle2` icon appearing if a value exists), and transition-all utility classes. Add `aria-live="polite"` to the container.
-4. Run pre-commit instructions.
-5. Submit changes.
+# Asclepius — Active TODO / Future Work
+# Last updated: 2026-04-19
+
+## 🔴 HIGH PRIORITY — Context Pipeline Refactor (Bring Back)
+The current "Ping Mode" in CommandCenter.tsx is a BANDAID. 
+The full context pipeline needs a proper tiered intent classification system:
+  - Every chat message currently triggers a full LLM call (even "hi")
+  - Ollama context window (8192 tokens) can overflow with long conversations
+  - The system has no message intent detection (greeting vs. task vs. query)
+  - No caching of system state between rapid messages
+  
+  Proposed future architecture:
+  1. Intent Classifier (local, no LLM): categorize message as ping/greeting, 
+     status query, task command, or complex analysis
+  2. Tiered Context Loading: ping=minimal, status=agents only, task=full context
+  3. Streaming responses for Ollama (stream: true) to improve perceived speed
+  4. Context caching: don't rebuild agent/project context if nothing changed
+  5. History windowing: sliding window with summarization for long conversations
+
+## 🟡 MEDIUM — Quota Management Hardening  
+  - checkQuota() currently returns true always (posts warning but doesn't block)
+  - Consider: if quota hit + provider is gemini, mutate to ollama immediately
+  - Per-agent quota tracking needs UI visibility in Agent Config
+
+## 🟢 LOW — Cleanup
+  - Consider moving system prompt templates to separate .ts file for maintainability
