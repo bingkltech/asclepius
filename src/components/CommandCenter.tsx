@@ -231,11 +231,11 @@ export function CommandCenter({ settings, agents, onUpdateSettings, messages, se
         id: `quota-error-${Date.now()}`,
         role: "system",
         sender: "GOD-AGENT",
-        content: `[CRITICAL] API QUOTA EXHAUSTED: ${settings.usage.requestsToday}/${settings.usage.limitPerDay}. System entering hibernation until reset.`,
+        content: `[CRITICAL] API QUOTA EXHAUSTED: ${settings.usage.requestsToday}/${settings.usage.limitPerDay}. Bypassing Gemini and forcing Ollama Fallback.`,
         timestamp: new Date().toLocaleTimeString()
       };
+      // We no longer return false here. We let it proceed so the Smart Router can catch the 429 and trigger the Ollama fallback organically.
       setMessages(prev => [...prev, errorMsg]);
-      return false;
     }
     return true;
   };
