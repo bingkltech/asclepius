@@ -4,7 +4,7 @@
  */
 
 import { analyzeCode as analyzeWithGemini, chatWithAgent as chatWithGeminiAgent } from "./gemini";
-import { chatWithOllama, generateOllamaContent } from "./ollama";
+import { chatWithOllama, generateOllamaContent, listOllamaModels, OllamaModel } from "./ollama";
 import { LLMSettings, CodeAnalysis, Agent } from "../types";
 import { Content } from "@google/genai";
 import { recordAPICall } from "./apiBudget";
@@ -163,7 +163,10 @@ export const testConnection = async (settings: LLMSettings): Promise<{ success: 
       if (!settings.ollamaBaseUrl) {
         return { success: false, message: "Ollama Base URL is missing." };
       }
-      await generateOllamaContent(settings.ollamaBaseUrl, settings.ollamaModel, "ping");
+      const models = await listOllamaModels(settings.ollamaBaseUrl);
+      if (!models.some((m: OllamaModel) => m.name === settings.ollamaModel)) {
+        return { success: false, message: `Ollama is reachable, but model '${settings.ollamaModel}' is not installed.` };
+      }
       return { success: true, message: `Ollama connected successfully (Model: ${settings.ollamaModel}).` };
     }
   } catch (error) {
