@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { TerminalSquare, Play, Plus, Server, Code2, Cpu } from "lucide-react";
+import { TerminalSquare, Play, Plus, Server, Code2, Cpu, ChevronDown, ChevronUp, Key, Lock, Network } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -25,6 +25,7 @@ export function GodOrchestrator({ settings, godAgent, projects, sandboxRuns }: G
   const [isProcessing, setIsProcessing] = useState(false);
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [editingEmailId, setEditingEmailId] = useState<string | null>(null);
+  const [expandedWorkerId, setExpandedWorkerId] = useState<string | null>(null);
 
   const [workers, setWorkers] = useState<CloudWorker[]>([
     { id: 'worker-1', name: 'Jules Worker 1', email: 'asclepius.coo.agent@gmail.com', status: 'disconnected' },
@@ -118,52 +119,99 @@ export function GodOrchestrator({ settings, godAgent, projects, sandboxRuns }: G
             <ScrollArea className="flex-1 -mx-2 px-2">
               <div className="space-y-3">
                 {workers.map((worker) => (
-                  <div key={worker.id} className="bg-secondary/20 border border-border/50 rounded-lg p-3 flex flex-col gap-2">
-                    <div className="flex items-center justify-between">
+                  <div key={worker.id} className="bg-secondary/20 border border-border/50 rounded-lg overflow-hidden flex flex-col transition-all">
+                    {/* Header Row */}
+                    <div 
+                      className="p-3 flex items-center justify-between cursor-pointer hover:bg-secondary/30 transition-colors"
+                      onClick={() => setExpandedWorkerId(expandedWorkerId === worker.id ? null : worker.id)}
+                    >
                       <div className="flex items-center gap-3">
                         <Cpu className={worker.status === 'disconnected' ? "w-5 h-5 text-muted-foreground" : "w-5 h-5 text-sky-400"} />
                         <div>
                           <div className="text-xs font-semibold">{worker.name}</div>
-                          {editingEmailId === worker.id ? (
-                            <div className="flex items-center gap-2 mt-1">
-                              <Input 
-                                value={worker.email}
-                                onChange={(e) => setWorkers(prev => prev.map(w => w.id === worker.id ? { ...w, email: e.target.value } : w))}
-                                className="h-6 text-[10px] w-48 bg-background"
-                                onKeyDown={(e) => { if (e.key === 'Enter') setEditingEmailId(null); }}
-                                autoFocus
-                                onBlur={() => setEditingEmailId(null)}
-                              />
-                            </div>
-                          ) : (
-                            <div 
-                              className="text-[10px] text-muted-foreground cursor-pointer hover:text-sky-400 transition-colors"
-                              onClick={() => { if(worker.status === 'disconnected') setEditingEmailId(worker.id); }}
+                          <div className="text-[10px] text-muted-foreground">{worker.email} • {worker.status}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {worker.status !== 'disconnected' && (
+                          <span className="relative flex h-2 w-2 mr-2">
+                            {worker.status === 'working' && (
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+                            )}
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500"></span>
+                          </span>
+                        )}
+                        {expandedWorkerId === worker.id ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                      </div>
+                    </div>
+
+                    {/* Expanded Config Panel */}
+                    {expandedWorkerId === worker.id && (
+                      <div className="p-3 pt-0 border-t border-border/20 bg-background/50 flex flex-col gap-3">
+                        <div className="space-y-2 mt-2">
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold flex items-center gap-1">
+                              <Network className="w-3 h-3" /> Jules API Endpoint
+                            </label>
+                            <Input 
+                              defaultValue={`wss://jules.google.com/api/v1/sandbox/${worker.id}`}
+                              className="h-7 text-[10px] bg-secondary/20 font-mono"
+                              readOnly={worker.status !== 'disconnected'}
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold flex items-center gap-1">
+                              <Lock className="w-3 h-3" /> Identity Account (Email)
+                            </label>
+                            <Input 
+                              value={worker.email}
+                              onChange={(e) => setWorkers(prev => prev.map(w => w.id === worker.id ? { ...w, email: e.target.value } : w))}
+                              className="h-7 text-[10px] bg-secondary/20 font-mono"
+                              readOnly={worker.status !== 'disconnected'}
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold flex items-center gap-1">
+                              <Key className="w-3 h-3" /> OAuth Refresh Token
+                            </label>
+                            <Input 
+                              type="password"
+                              placeholder="1//04_xxxxx_xxxxx"
+                              className="h-7 text-[10px] bg-secondary/20 font-mono"
+                              readOnly={worker.status !== 'disconnected'}
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="flex justify-end mt-1">
+                          {worker.status === 'disconnected' ? (
+                            <Button 
+                              size="sm" 
+                              className="h-7 text-[10px] bg-sky-600 hover:bg-sky-500 text-white"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleConnectWorker(worker.id);
+                              }}
+                              disabled={connectingId === worker.id}
                             >
-                              {worker.email} • {worker.status}
-                            </div>
+                              {connectingId === worker.id ? "Authenticating..." : "Connect Identity"}
+                            </Button>
+                          ) : (
+                            <Button 
+                              size="sm" 
+                              variant="destructive"
+                              className="h-7 text-[10px]"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setWorkers(prev => prev.map(w => w.id === worker.id ? { ...w, status: 'disconnected' } : w));
+                              }}
+                            >
+                              Revoke Access
+                            </Button>
                           )}
                         </div>
                       </div>
-                      {worker.status === 'disconnected' ? (
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="h-7 text-[10px]"
-                          onClick={() => handleConnectWorker(worker.id)}
-                          disabled={connectingId === worker.id}
-                        >
-                          {connectingId === worker.id ? "Connecting..." : "Connect"}
-                        </Button>
-                      ) : (
-                        <span className="relative flex h-2 w-2">
-                          {worker.status === 'working' && (
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
-                        )}
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500"></span>
-                      </span>
                     )}
-                    </div>
                   </div>
                 ))}
               </div>
