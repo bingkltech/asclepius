@@ -7,6 +7,7 @@ import { analyzeCode as analyzeWithGemini, chatWithAgent as chatWithGeminiAgent 
 import { chatWithOllama, generateOllamaContent } from "./ollama";
 import { LLMSettings, CodeAnalysis, Agent } from "../types";
 import { Content } from "@google/genai";
+import { recordAPICall, type CallPurpose } from "./apiBudget";
 
 // ─── Per-Agent Credential Resolver ───
 // Merges an agent's personal credentials with global settings.
@@ -175,10 +176,27 @@ export const getUnifiedCodeAnalysis = async (settings: LLMSettings, code: string
 
   if (useGemini) {
     try {
-      return await analyzeWithGemini(code, settings.geminiApiKey);
+      const result = await analyzeWithGemini(code, settings.geminiApiKey);
+      recordAPICall({
+        agentId: 'system', agentName: 'Sandbox',
+        provider: 'gemini', requestedProvider: settings.provider,
+        routedBy: settings.provider === 'auto' ? 'smart_router' : 'user',
+        purpose: 'sandbox_analysis', outcome: 'success',
+        promptLength: code.length, responseLength: JSON.stringify(result).length,
+        productive: true, description: `Sandbox code analysis (${code.length} chars)`,
+      });
+      return result;
     } catch (error) {
       if (isFailoverCondition(error)) {
         setRateLimit();
+        recordAPICall({
+          agentId: 'system', agentName: 'Sandbox',
+          provider: 'gemini', requestedProvider: settings.provider,
+          routedBy: settings.provider === 'auto' ? 'smart_router' : 'user',
+          purpose: 'sandbox_analysis', outcome: 'failed_429',
+          promptLength: code.length, responseLength: 0,
+          productive: false, description: `Sandbox analysis FAILED (429/rate limit)`,
+        });
         console.warn("[FALLBACK_INIT] Gemini disruption detected (Network/401/429). Falling back to Ollama.");
         // Fall through to Ollama below
       } else {
@@ -266,11 +284,37 @@ export const getUnifiedChatResponse = async (
         role: h.role === 'model' ? 'model' : 'user',
         parts: [{ text: h.content }]
       }));
-      return await chatWithGeminiAgent(message, geminiHistory, systemInstruction, settings.geminiApiKey, settings.geminiModel);
+      const response = await chatWithGeminiAgent(message, geminiHistory, systemInstruction, settings.geminiApiKey, settings.geminiModel);
+      // Determine purpose from context
+      let purpose: CallPurpose = 'unknown';
+      const ctx = (message + ' ' + systemContext).toLowerCase();
+      if (ctx.includes('[system_audit_due]')) purpose = 'god_audit';
+      else if (ctx.includes('error') || ctx.includes('failed') || ctx.includes('bug')) purpose = 'error_fix';
+      else if (ctx.includes('perform task:')) purpose = 'scheduled_task';
+      else purpose = 'human_command';
+      
+      recordAPICall({
+        agentId: agentName, agentName,
+        provider: 'gemini', requestedProvider: settings.provider,
+        routedBy: settings.provider === 'auto' ? 'smart_router' : 'user',
+        purpose, outcome: 'success',
+        promptLength: message.length + systemContext.length,
+        responseLength: response.length,
+        productive: true, description: `${agentName}: ${message.slice(0, 80)}`,
+      });
+      return response;
     } catch (error) {
       if (isFailoverCondition(error)) {
         const state = setRateLimit();
         const info = getGeminiRefreshInfo();
+        recordAPICall({
+          agentId: agentName, agentName,
+          provider: 'gemini', requestedProvider: settings.provider,
+          routedBy: settings.provider === 'auto' ? 'smart_router' : 'user',
+          purpose: 'unknown', outcome: 'failed_429',
+          promptLength: message.length, responseLength: 0,
+          productive: false, description: `${agentName}: FAILED 429 rate limit`,
+        });
         console.warn(`[FALLBACK_INIT] Gemini disruption detected. Auto-switching to Ollama for ${info.timeLeft}.`);
         // Fall through to Ollama below
       } else {

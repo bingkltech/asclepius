@@ -15,6 +15,7 @@ import { julesSubmitTask, julesPollTask, julesCancelTask, getJulesTasks, JulesTa
 import { addKnowledge, saveSkillScript, searchKnowledge, getVaultStats, recordEpisode } from "@/src/services/neuralVault";
 import { listBranches, getStatus, mergeBranch, checkoutBranch, getConflicts } from "@/src/services/gitOps";
 import { openInDesktop } from "@/src/services/githubDesktop";
+import { formatBudgetReportForAgent } from "@/src/services/apiBudget";
 import { ChatMessage, LogEntry, LLMSettings, Agent, AgentSkill, LLMProvider, SKILL_XP_TABLE, SKILL_LEVEL_NAMES, Project, GoalStatus, SandboxRun, createSkill } from "@/src/types";
 import { motion } from "motion/react";
 import ReactMarkdown from "react-markdown";
@@ -889,6 +890,17 @@ CRITICAL SLEEP PROTOCOL: If you are the God-Agent and you were woken up for a qu
 \`\`\`json:action
 { "type": "PAUSE_AGENT", "payload": { "agentId": "god" } }
 \`\`\`
+
+${formatBudgetReportForAgent()}
+
+${targetAgent.id === 'god' ? `GOD-AGENT EXCLUSIVE DIRECTIVE — API BUDGET REVIEW:
+You are the SOLE authority on API budget efficiency. During every review cycle, you MUST:
+1. Read the API BUDGET REPORT above carefully.
+2. Identify which agents or purposes are wasting Gemini calls.
+3. Provide a HINDSIGHT paragraph: "Based on the last 5 hours of API usage, here is what we did well and what we should change..."
+4. If efficiency is below 70%, issue a CORRECTIVE ACTION — recommend specific tasks to move to Ollama.
+5. If efficiency is above 90%, acknowledge the fleet's discipline.
+Do NOT skip this analysis. It is your fiduciary duty as CEO.` : ''}
 
 ═══ JULES TASK QUEUE (COO-Agent Tool) ═══
 ${(() => {
