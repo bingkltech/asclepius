@@ -13,7 +13,14 @@
 
 ### What Asclepius IS
 
-Asclepius is a **Cognitive Management Plane** — it embodies the strategic mind (the God-Agent) while offloading all neural inference to cloud APIs (`jules.google`, Google Gemini). The app thinks, plans, delegates, and verifies. The cloud performs the raw cognitive labor.
+Asclepius is a **Cognitive Management Plane** — it embodies the strategic mind (the God-Agent) while offloading all neural inference to cloud APIs (`jules.google`, Google Gemini) and local models (Ollama). The app thinks, plans, delegates, and verifies. The cloud and local hardware perform the raw cognitive labor.
+
+### The Smart Router & Fiduciary Protocol
+
+Asclepius implements a **Smart Router** that actively balances cognitive load and API budget. 
+- **Offline / Local Fallback**: When the global API quota is exhausted, the Command Center will cleanly fallback to local Ollama.
+- **Context Compression**: The Command Center utilizes ultra-compact data serialization to ensure local LLMs remain blazing fast and API usage remains hyper-efficient.
+- **Fiduciary Audits**: The God-Agent actively monitors agent token expenditure and throtles workloads to protect your daily quotas.
 
 ### What Asclepius is NOT
 
