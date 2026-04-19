@@ -80,7 +80,11 @@ export function Settings({ settings, onSettingsChange }: SettingsProps) {
     if (settings.provider === "ollama" || settings.provider === "auto") {
       refreshModels();
     }
-  }, [settings.provider, settings.ollamaBaseUrl]);
+    // Force legacy settings to 'auto' to enforce the implicit Smart Router
+    if (settings.provider !== "auto") {
+      onSettingsChange({ ...settings, provider: "auto" });
+    }
+  }, [settings.provider, settings.ollamaBaseUrl, onSettingsChange]);
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -91,130 +95,69 @@ export function Settings({ settings, onSettingsChange }: SettingsProps) {
         </p>
       </div>
 
-      {/* LLM Provider Card */}
+      {/* Master API Keys Card */}
       <div className="gradient-border rounded-xl bg-card/80 overflow-hidden">
-        <div className="px-5 py-4 border-b border-border/20">
-          <h3 className="text-sm font-semibold">LLM Provider</h3>
-          <p className="text-[11px] text-muted-foreground/50 mt-0.5">
-            Global provider routing. This API key is used by God-Agent and new agents by default.
-            Each agent can override with their own key in Agent Config → Credentials.
+        <div className="px-5 py-4 border-b border-border/20 bg-primary/5">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <Globe className="w-4 h-4 text-primary" /> Master API Configuration
+          </h3>
+          <p className="text-[11px] text-muted-foreground/70 mt-1">
+            These are the <b>Global Master Keys</b>. The Smart Router uses these keys by default for the God-Agent and any newly spawned agents. 
+            Individual agents can override these with their own personal keys in their Agent Config panel to multiply your daily quota.
           </p>
         </div>
         <div className="p-5 space-y-6">
-          {/* Provider Selection */}
-          <RadioGroup
-            value={settings.provider}
-            onValueChange={(val) =>
-              onSettingsChange({ ...settings, provider: val as LLMProvider })
-            }
-            className="grid grid-cols-3 gap-4"
-          >
-            <div>
-              <RadioGroupItem value="auto" id="auto" className="sr-only" />
-              <Label
-                htmlFor="auto"
-                className={cn(
-                  "flex flex-col items-center justify-between rounded-xl border-2 bg-secondary/20 p-5 cursor-pointer transition-all hover:bg-secondary/40",
-                  settings.provider === "auto"
-                    ? "border-primary bg-primary/5 shadow-lg shadow-primary/10"
-                    : "border-border/30"
-                )}
-              >
-                <Zap className="mb-3 h-6 w-6 text-amber-400" />
-                <span className="text-xs font-semibold text-center">Smart Router</span>
-                <span className="text-[9px] text-muted-foreground/40 mt-1">Auto</span>
-              </Label>
-            </div>
-            <div>
-              <RadioGroupItem value="gemini" id="gemini" className="sr-only" />
-              <Label
-                htmlFor="gemini"
-                className={cn(
-                  "flex flex-col items-center justify-between rounded-xl border-2 bg-secondary/20 p-5 cursor-pointer transition-all hover:bg-secondary/40",
-                  settings.provider === "gemini"
-                    ? "border-primary bg-primary/5 shadow-lg shadow-primary/10"
-                    : "border-border/30"
-                )}
-              >
-                <Globe className="mb-3 h-6 w-6 text-sky-400" />
-                <span className="text-xs font-semibold">Gemini API</span>
-                <span className="text-[9px] text-muted-foreground/40 mt-1">Cloud</span>
-              </Label>
-            </div>
-            <div>
-              <RadioGroupItem value="ollama" id="ollama" className="sr-only" />
-              <Label
-                htmlFor="ollama"
-                className={cn(
-                  "flex flex-col items-center justify-between rounded-xl border-2 bg-secondary/20 p-5 cursor-pointer transition-all hover:bg-secondary/40",
-                  settings.provider === "ollama"
-                    ? "border-primary bg-primary/5 shadow-lg shadow-primary/10"
-                    : "border-border/30"
-                )}
-              >
-                <Cpu className="mb-3 h-6 w-6 text-emerald-400" />
-                <span className="text-xs font-semibold">Ollama</span>
-                <span className="text-[9px] text-muted-foreground/40 mt-1">Local</span>
-              </Label>
-            </div>
-          </RadioGroup>
 
-          {/* Smart Router description */}
-          {settings.provider === "auto" && (
-            <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/15 text-xs space-y-1">
-              <div className="font-semibold text-amber-400 flex items-center gap-2">
-                <Zap className="w-3.5 h-3.5" />
-                Cognitive Load Balancer Active
-              </div>
-              <p className="text-muted-foreground/60 text-[10px] leading-relaxed">
-                Routine tasks → Ollama (free). Errors, audits, and complex analysis → Gemini 3.1 Pro (paid). 
-                Configure both providers below.
-              </p>
+          <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/15 text-xs space-y-1">
+            <div className="font-semibold text-amber-400 flex items-center gap-2">
+              <Zap className="w-3.5 h-3.5" />
+              Cognitive Load Balancer Active
             </div>
-          )}
+            <p className="text-muted-foreground/60 text-[10px] leading-relaxed">
+              Routine tasks → Ollama (free). Errors, audits, and complex analysis → Gemini 3.1 Pro (paid). 
+              Configure both providers below.
+            </p>
+          </div>
 
           {/* Gemini config */}
-          {(settings.provider === "gemini" || settings.provider === "auto") && (
-            <div className="space-y-4 pt-2">
-              <div className="space-y-2">
-                <Label htmlFor="gemini-model" className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
-                  Gemini Model
-                </Label>
-                <Input
-                  id="gemini-model"
-                  value={settings.geminiModel}
-                  onChange={(e) =>
-                    onSettingsChange({ ...settings, geminiModel: e.target.value })
-                  }
-                  placeholder="gemini-3.1-pro-preview"
-                  className="bg-secondary/30 border-border/50 text-xs"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="gemini-api-key" className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
-                  Gemini API Key
-                </Label>
-                <Input
-                  id="gemini-api-key"
-                  type="password"
-                  value={settings.geminiApiKey || ""}
-                  onChange={(e) =>
-                    onSettingsChange({ ...settings, geminiApiKey: e.target.value })
-                  }
-                  placeholder="Enter your Gemini API key..."
-                  className="bg-secondary/30 border-border/50 text-xs"
-                />
-                <p className="text-[9px] text-muted-foreground/40">
-                  This is the <strong className="text-amber-400">company credit card</strong>. Used by God-Agent
-                  and any agent without a personal key. Per-agent keys are set in Agent Config → Credentials tab.
-                </p>
-              </div>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label htmlFor="gemini-model" className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
+                Gemini Model
+              </Label>
+              <Input
+                id="gemini-model"
+                value={settings.geminiModel}
+                onChange={(e) =>
+                  onSettingsChange({ ...settings, geminiModel: e.target.value })
+                }
+                placeholder="gemini-3.1-pro-preview"
+                className="bg-secondary/30 border-border/50 text-xs"
+              />
             </div>
-          )}
+            <div className="space-y-2">
+              <Label htmlFor="gemini-api-key" className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
+                Master Gemini API Key
+              </Label>
+              <Input
+                id="gemini-api-key"
+                type="password"
+                value={settings.geminiApiKey || ""}
+                onChange={(e) =>
+                  onSettingsChange({ ...settings, geminiApiKey: e.target.value })
+                }
+                placeholder="Enter your Gemini API key..."
+                className="bg-secondary/30 border-border/50 text-xs"
+              />
+              <p className="text-[9px] text-muted-foreground/40">
+                This is the <strong className="text-amber-400">company credit card</strong>. Used by God-Agent
+                and any agent without a personal key. Per-agent keys are set in Agent Config → Credentials tab.
+              </p>
+            </div>
+          </div>
 
           {/* Ollama config */}
-          {(settings.provider === "ollama" || settings.provider === "auto") && (
-            <div className="space-y-4 pt-2">
+          <div className="space-y-4 pt-2">
               <div className="space-y-2">
                 <Label htmlFor="ollama-url" className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
                   Ollama Base URL
@@ -333,7 +276,6 @@ export function Settings({ settings, onSettingsChange }: SettingsProps) {
                 </p>
               </div>
             </div>
-          )}
 
           {/* ─── Test Connection ─── */}
           <div className="pt-2 border-t border-border/15 space-y-3">

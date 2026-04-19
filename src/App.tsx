@@ -351,7 +351,7 @@ export default function App() {
   }, []);
 
   const [llmSettings, setLlmSettings] = useState<LLMSettings>(() => secureGetItem<LLMSettings>("antigravity_llm_settings", {
-    provider: "gemini",
+    provider: "auto",
     ollamaBaseUrl: "http://localhost:11434",
     ollamaModel: "gemma4:e4b",
     geminiModel: "gemini-3.1-pro-preview",
