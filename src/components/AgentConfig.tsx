@@ -76,6 +76,7 @@ import {
   Link,
   Unlink,
   LogIn,
+  Zap,
 } from "lucide-react";
 import { testConnection } from "@/src/services/llm";
 import { listOllamaModels, OllamaModel } from "@/src/services/ollama";
