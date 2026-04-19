@@ -678,48 +678,57 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                     AI Provider & Model
                   </h3>
                   <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
-                        Provider
-                      </Label>
-                      <div className="grid grid-cols-2 gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setProvider("gemini")}
-                          className={cn(
-                            "flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all",
-                            provider === "gemini"
-                              ? "border-primary bg-primary/5 shadow-lg shadow-primary/10"
-                              : "border-border/30 bg-secondary/20 hover:bg-secondary/40"
-                          )}
-                        >
-                          <Globe className="w-5 h-5 text-sky-400" />
-                          <span className="text-[10px] font-semibold">Gemini API</span>
-                          <span className="text-[8px] text-muted-foreground/40">Cloud</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setProvider("ollama")}
-                          className={cn(
-                            "flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all",
-                            provider === "ollama"
-                              ? "border-primary bg-primary/5 shadow-lg shadow-primary/10"
-                              : "border-border/30 bg-secondary/20 hover:bg-secondary/40"
-                          )}
-                        >
-                          <Cpu className="w-5 h-5 text-emerald-400" />
-                          <span className="text-[10px] font-semibold">Ollama</span>
-                          <span className="text-[8px] text-muted-foreground/40">Local</span>
-                        </button>
+                    <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/15 text-xs space-y-1">
+                      <div className="font-semibold text-amber-400 flex items-center gap-2">
+                        <Zap className="w-3.5 h-3.5" />
+                        Smart Router Active
                       </div>
+                      <p className="text-muted-foreground/60 text-[10px] leading-relaxed">
+                        This agent automatically routes routine tasks to local Ollama and complex reasoning to Gemini API. Configure the specific models to use below.
+                      </p>
                     </div>
 
+                    {/* Gemini Model */}
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
+                      <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
+                        Primary Gemini Model
+                      </Label>
+                      <Select value={credGeminiModel} onValueChange={setCredGeminiModel}>
+                        <SelectTrigger className="w-full bg-secondary/30 border-border/50 text-sm h-10">
+                          <SelectValue placeholder="Use global default" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#1e1e24] border-border/50">
+                          <SelectItem value=" " className="text-xs">Use global default</SelectItem>
+                          <SelectItem value="gemini-3.1-pro-preview" className="text-xs">gemini-3.1-pro-preview (Best)</SelectItem>
+                          <SelectItem value="gemini-3.1-flash-lite-preview" className="text-xs">gemini-3.1-flash-lite-preview (Fast)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="border-t border-border/20 pt-4 space-y-4">
+                      <h4 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/50">
+                        Ollama Fallback
+                      </h4>
+
+                      {/* Ollama URL */}
+                      <div className="space-y-2">
                         <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
-                          Model Name
+                          Ollama Endpoint
                         </Label>
-                        {provider === "ollama" && (
+                        <Input
+                          value={credOllamaUrl}
+                          onChange={(e) => setCredOllamaUrl(e.target.value)}
+                          placeholder="http://localhost:11434 (global default)"
+                          className="bg-secondary/30 border-border/50 text-sm font-mono h-10"
+                        />
+                      </div>
+
+                      {/* Ollama Model */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
+                            Secondary Ollama Model
+                          </Label>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -734,66 +743,33 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                             )}
                             Refresh
                           </Button>
-                        )}
-                      </div>
-                      {provider === "gemini" ? (
-                        <Select value={model} onValueChange={setModel}>
+                        </div>
+                        <Select value={credOllamaModel} onValueChange={setCredOllamaModel}>
                           <SelectTrigger className="w-full bg-secondary/30 border-border/50 text-sm h-10">
-                            <SelectValue placeholder="Select model" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-[#1e1e24] border-border/50">
-                            <SelectItem value="gemini-3.1-pro-preview" className="text-xs">
-                              gemini-3.1-pro-preview (Best)
-                            </SelectItem>
-                            <SelectItem value="gemini-3.1-flash-lite-preview" className="text-xs">
-                              gemini-3.1-flash-lite-preview (Fast)
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Select value={model} onValueChange={setModel}>
-                          <SelectTrigger className="w-full bg-secondary/30 border-border/50 text-sm h-10">
-                            <SelectValue placeholder="Select a model" />
+                            <SelectValue placeholder="Use global default" />
                           </SelectTrigger>
                           <SelectContent className="bg-[#1e1e24] border-border/50 max-h-60">
                             <SelectGroup>
                               <SelectLabel className="text-[9px] uppercase tracking-widest text-muted-foreground/40">
-                                Local Models
+                                Local & Cloud Models
                               </SelectLabel>
+                              <SelectItem value=" " className="text-xs">Use global default</SelectItem>
                               {ollamaModels.length > 0 ? (
                                 ollamaModels.map((m) => (
                                   <SelectItem key={m.name} value={m.name} className="text-xs">
                                     <div className="flex items-center justify-between w-full gap-4">
                                       <span>{m.name}</span>
                                       <span className="text-[9px] text-muted-foreground/40">
-                                        {(m.size / 1024 / 1024 / 1024).toFixed(1)}GB
+                                        {m.name.includes('cloud') || m.size < 1048576 ? '☁️ Cloud' : `${(m.size / 1024 / 1024 / 1024).toFixed(1)}GB`}
                                       </span>
                                     </div>
                                   </SelectItem>
                                 ))
-                              ) : (
-                                <SelectItem value={model || "gemma4:e4b"} className="text-xs">
-                                  {model || "gemma4:e4b"} (Current)
-                                </SelectItem>
-                              )}
-                            </SelectGroup>
-                            <SelectSeparator />
-                            <SelectGroup>
-                              <SelectLabel className="text-[9px] uppercase tracking-widest text-muted-foreground/40">
-                                Cloud Models
-                              </SelectLabel>
-                              {[{name: "gemma2:cloud"}, {name: "llama3:cloud"}, {name: "mistral:cloud"}].map((m) => (
-                                <SelectItem key={m.name} value={m.name} className="text-xs">
-                                  <div className="flex items-center justify-between w-full gap-4">
-                                    <span>{m.name}</span>
-                                    <Badge variant="secondary" className="text-[7px] h-3.5 px-1 bg-sky-500/10 text-sky-400 border-0">CLOUD</Badge>
-                                  </div>
-                                </SelectItem>
-                              ))}
+                              ) : null}
                             </SelectGroup>
                           </SelectContent>
                         </Select>
-                      )}
+                      </div>
                     </div>
 
                     <div className="space-y-3 pt-2">
@@ -1604,107 +1580,7 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
                       </p>
                     </div>
 
-                    {/* Gemini Model */}
-                    <div className="space-y-2">
-                      <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
-                        Preferred Gemini Model
-                      </Label>
-                      <Select value={credGeminiModel} onValueChange={setCredGeminiModel}>
-                        <SelectTrigger className="w-full bg-secondary/30 border-border/50 text-sm h-10">
-                          <SelectValue placeholder="Use global default" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#1e1e24] border-border/50">
-                          <SelectItem value=" " className="text-xs">Use global default</SelectItem>
-                          <SelectItem value="gemini-3.1-pro-preview" className="text-xs">gemini-3.1-pro-preview (Best)</SelectItem>
-                          <SelectItem value="gemini-3.1-flash-lite-preview" className="text-xs">gemini-3.1-flash-lite-preview (Fast)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
 
-                    <div className="border-t border-border/20 pt-4 space-y-4">
-                      <h4 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/50">
-                        Ollama Fallback
-                      </h4>
-
-                      {/* Ollama URL */}
-                      <div className="space-y-2">
-                        <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
-                          Ollama Endpoint
-                        </Label>
-                        <Input
-                          value={credOllamaUrl}
-                          onChange={(e) => setCredOllamaUrl(e.target.value)}
-                          placeholder="http://localhost:11434 (global default)"
-                          className="bg-secondary/30 border-border/50 text-sm font-mono h-10"
-                        />
-                      </div>
-
-                      {/* Ollama Model */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-xs uppercase tracking-widest font-bold text-foreground/90">
-                            Ollama Model
-                          </Label>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={refreshOllamaModels}
-                            disabled={isRefreshingOllama}
-                            className="h-6 text-[9px] uppercase tracking-wider text-muted-foreground/50 hover:text-foreground"
-                          >
-                            {isRefreshingOllama ? (
-                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                            ) : (
-                              <RefreshCw className="w-3 h-3 mr-1" />
-                            )}
-                            Refresh
-                          </Button>
-                        </div>
-                        <Select value={credOllamaModel} onValueChange={setCredOllamaModel}>
-                          <SelectTrigger className="w-full bg-secondary/30 border-border/50 text-sm h-10">
-                            <SelectValue placeholder="Use global default" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-[#1e1e24] border-border/50 max-h-60">
-                            <SelectGroup>
-                              <SelectLabel className="text-[9px] uppercase tracking-widest text-muted-foreground/40">
-                                Local Models
-                              </SelectLabel>
-                              <SelectItem value=" " className="text-xs">Use global default</SelectItem>
-                              {ollamaModels.length > 0 ? (
-                                ollamaModels.map((m) => (
-                                  <SelectItem key={m.name} value={m.name} className="text-xs">
-                                    <div className="flex items-center justify-between w-full gap-4">
-                                      <span>{m.name}</span>
-                                      <span className="text-[9px] text-muted-foreground/40">
-                                        {(m.size / 1024 / 1024 / 1024).toFixed(1)}GB
-                                      </span>
-                                    </div>
-                                  </SelectItem>
-                                ))
-                              ) : (
-                                <SelectItem value={credOllamaModel || "gemma4:e4b"} className="text-xs" disabled>
-                                  {credOllamaModel || "gemma4:e4b"} (Current)
-                                </SelectItem>
-                              )}
-                            </SelectGroup>
-                            <SelectSeparator />
-                            <SelectGroup>
-                              <SelectLabel className="text-[9px] uppercase tracking-widest text-muted-foreground/40">
-                                Cloud Models
-                              </SelectLabel>
-                              {[{name: "gemma2:cloud"}, {name: "llama3:cloud"}, {name: "mistral:cloud"}].map((m) => (
-                                <SelectItem key={m.name} value={m.name} className="text-xs">
-                                  <div className="flex items-center justify-between w-full gap-4">
-                                    <span>{m.name}</span>
-                                    <Badge variant="secondary" className="text-[7px] h-3.5 px-1 bg-sky-500/10 text-sky-400 border-0">CLOUD</Badge>
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
 
                     {/* Quota Display */}
                     <div className="border-t border-border/20 pt-4">
