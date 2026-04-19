@@ -100,6 +100,7 @@ export function ProjectsPage({ projects, agents, onUpdateProjects, sandboxRuns =
       id: `proj-${Date.now()}`,
       name: newName.trim(),
       description: newDescription.trim(),
+      path: newGithubUrl.trim() ? `F:/012A_Github/${newName.trim().toLowerCase().replace(/\s+/g, '-')}` : "./",
       goals: [],
       githubUrl: newGithubUrl.trim(),
       status: "planning",

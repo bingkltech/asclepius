@@ -77,7 +77,7 @@ export function Settings({ settings, onSettingsChange }: SettingsProps) {
   }, [settings.provider]);
 
   useEffect(() => {
-    if (settings.provider === "ollama") {
+    if (settings.provider === "ollama" || settings.provider === "auto") {
       refreshModels();
     }
   }, [settings.provider, settings.ollamaBaseUrl]);
@@ -106,8 +106,24 @@ export function Settings({ settings, onSettingsChange }: SettingsProps) {
             onValueChange={(val) =>
               onSettingsChange({ ...settings, provider: val as LLMProvider })
             }
-            className="grid grid-cols-2 gap-4"
+            className="grid grid-cols-3 gap-4"
           >
+            <div>
+              <RadioGroupItem value="auto" id="auto" className="sr-only" />
+              <Label
+                htmlFor="auto"
+                className={cn(
+                  "flex flex-col items-center justify-between rounded-xl border-2 bg-secondary/20 p-5 cursor-pointer transition-all hover:bg-secondary/40",
+                  settings.provider === "auto"
+                    ? "border-primary bg-primary/5 shadow-lg shadow-primary/10"
+                    : "border-border/30"
+                )}
+              >
+                <Zap className="mb-3 h-6 w-6 text-amber-400" />
+                <span className="text-xs font-semibold text-center">Smart Router</span>
+                <span className="text-[9px] text-muted-foreground/40 mt-1">Auto</span>
+              </Label>
+            </div>
             <div>
               <RadioGroupItem value="gemini" id="gemini" className="sr-only" />
               <Label
@@ -142,8 +158,22 @@ export function Settings({ settings, onSettingsChange }: SettingsProps) {
             </div>
           </RadioGroup>
 
+          {/* Smart Router description */}
+          {settings.provider === "auto" && (
+            <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/15 text-xs space-y-1">
+              <div className="font-semibold text-amber-400 flex items-center gap-2">
+                <Zap className="w-3.5 h-3.5" />
+                Cognitive Load Balancer Active
+              </div>
+              <p className="text-muted-foreground/60 text-[10px] leading-relaxed">
+                Routine tasks → Ollama (free). Errors, audits, and complex analysis → Gemini 3.1 Pro (paid). 
+                Configure both providers below.
+              </p>
+            </div>
+          )}
+
           {/* Gemini config */}
-          {settings.provider === "gemini" && (
+          {(settings.provider === "gemini" || settings.provider === "auto") && (
             <div className="space-y-4 pt-2">
               <div className="space-y-2">
                 <Label htmlFor="gemini-model" className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
@@ -185,7 +215,7 @@ export function Settings({ settings, onSettingsChange }: SettingsProps) {
           )}
 
           {/* Ollama config */}
-          {settings.provider === "ollama" && (
+          {(settings.provider === "ollama" || settings.provider === "auto") && (
             <div className="space-y-4 pt-2">
               <div className="space-y-2">
                 <Label htmlFor="ollama-url" className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
