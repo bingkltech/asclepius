@@ -263,16 +263,20 @@ export function CommandCenter({ settings, agents, onUpdateSettings, messages, se
 
   // Proactive Error Detection (Trigger A: Auto-Heal)
   useEffect(() => {
-    if (!settings.autoHeal || logs.length === 0) return;
+    if (!settings.autoHeal || logs.length === 0 || isLoading) return;
 
     const latestLog = logs[0];
     if (latestLog.id === lastProcessedLogId.current) return;
     lastProcessedLogId.current = latestLog.id;
 
+    // Prevent Millisecond Death Loops: Ignore API/System network errors, only heal real project code.
+    const ignoredSources = ["system", "api_ledger", "monitor", "smart_router"];
+    if (ignoredSources.includes(latestLog.source.toLowerCase())) return;
+
     if (latestLog.severity === 'error' || latestLog.message.toLowerCase().includes('error') || latestLog.message.toLowerCase().includes('failed')) {
       handleAutoHeal(latestLog);
     }
-  }, [logs, settings.autoHeal]);
+  }, [logs, settings.autoHeal, isLoading]);
 
   const handleAutoHeal = async (log: SystemLogEntry) => {
     if (onResumeAgent) {
