@@ -162,57 +162,56 @@ Agentic loops can quickly overwhelm APIs (429 Rate Limits), exhaust memory, and 
 
 ---
 
-## Article IV — The Autonomous Delivery Pipeline (COO → Agent → Jules → PR → Sandbox → Main)
+## Article IV — The Autonomous Delivery Pipeline (God-Agent → Jules → Sandbox → Main)
 
-**Code flows in one direction: from task definition to verified production merge.**
+**Code flows in one direction: from granular task definition to verified production merge.**
 
-This is the closed-loop autonomous delivery pipeline. Every piece of code follows this exact path:
+This is the closed-loop autonomous delivery pipeline. The God-Agent orchestrates the entire flow:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                        THE DELIVERY PIPELINE                            │
+│                        THE LEAN DELIVERY PIPELINE                       │
 │                                                                         │
-│  ① COO creates task ──► ② Worker Agent receives task                   │
+│  ① God-Agent receives Project Goal                                      │
 │                              │                                          │
 │                              ▼                                          │
-│                         ③ Worker sends task to jules.google (Cloud)     │
+│  ② God-Agent granularizes Goal into Tasks                               │
 │                              │                                          │
 │                              ▼                                          │
-│                         ④ Jules generates code (CLOUD COMPUTE)          │
+│  ③ God-Agent delegates tasks in parallel to Jules (Cloud Workers)       │
+│    ├──► Account 1 (Jules) ──► Task A                                    │
+│    ├──► Account 2 (Jules) ──► Task B                                    │
+│    └──► Account N (Jules) ──► Task C                                    │
 │                              │                                          │
 │                              ▼                                          │
-│                         ⑤ Worker writes files locally (WRITE_FILE)      │
+│  ④ Jules generates code (CLOUD COMPUTE) and pushes to branches          │
 │                              │                                          │
 │                              ▼                                          │
-│                         ⑥ Worker creates PR branch → pushes to GitHub   │
+│  ⑤ God-Agent pulls branches via Git / GitHub Desktop                    │
 │                              │                                          │
 │                              ▼                                          │
-│                         ⑦ COO pulls branch into Sandbox                 │
-│                              │                                          │
-│                              ▼                                          │
-│                         ⑧ Sandbox tests (build, lint, run)              │
+│  ⑥ God-Agent runs Sandbox tests locally (build, lint, run)              │
 │                              │                                          │
 │                       ┌──────┴──────┐                                   │
 │                       │             │                                   │
-│                    PASS           FAIL                                   │
+│                    PASS           FAIL                                  │
 │                       │             │                                   │
-│                       ▼             ▼                                    │
-│               ⑨ COO merges    ⑩ COO rejects PR,                        │
-│                  to main         queues fix task                         │
-│                       │             │                                    │
-│                       │             └──── loops back to ②               │
-│                       ▼                                                  │
-│               ⑪ Next task in queue                                      │
+│                       ▼             ▼                                   │
+│               ⑦ God-Agent       ⑧ God-Agent rejects branch,             │
+│                 merges to main    creates fix task for Jules            │
+│                       │             │                                   │
+│                       │             └──── loops back to ③               │
+│                       ▼                                                 │
+│               ⑨ Next task in queue                                      │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Pipeline Rules
 
-1. **The Worker NEVER merges directly to main.** Only the COO (or God-Agent) can approve a merge after Sandbox verification.
-2. **Failed PRs generate new tasks automatically.** The error output is captured, parsed, and fed back as a new task for the Worker — creating a self-healing loop.
-3. **Each step respects the Slow Loop.** There is a deliberate pause between each pipeline stage.
-4. **The pipeline is resumable.** If the app crashes mid-pipeline, the queue persists and the pipeline restarts from the last completed step.
+1. **Jules NEVER merges directly to main.** Only the God-Agent can approve a merge after Sandbox verification.
+2. **Failed Tests generate new tasks automatically.** The error output from the Sandbox is captured, parsed, and fed back to Jules as a new fix task — creating a self-healing loop.
+3. **Parallel Delegation.** The God-Agent must utilize multiple Jules accounts to execute granular tasks in parallel, drastically reducing project delivery time.
 
 > **Test:** "Can the system autonomously deliver a 10-task project to a GitHub repository over 2 hours, with zero manual intervention, and all code passing Sandbox tests?" If the answer is no, Article IV is violated.
 
@@ -318,19 +317,33 @@ FORWARD     → Execute one task, log the result, feed it back into LOOKBACK
 
 **The core directive:** Agents must never merge untested code directly into production. The system relies on a secure, verifiable, and sovereign Git pipeline for continuous autonomous development.
 
-### The Pipeline
-1. **Genesis & Slicing:** The COO-Agent reads the master goal and decomposes it into granular, atomic tasks.
-2. **Sovereign Branching:** Worker agents create an isolated feature branch (`[agent_name]/[task_name]`) via the `/api/git/exec` backend bridge.
-3. **Cognitive Labor:** The agent uses `jules.google` to execute code, refine logic, and write to the filesystem via the backend bridge.
-4. **Sovereign Commits:** The agent executes `git commit`. The system automatically injects the agent's unique email identity (`git config user.name/email`) to preserve the illusion of a human workforce.
-5. **Sandbox Checkout:** The COO-Agent pulls the branch locally and executes the test suite. 
-6. **Merge to Main:** ONLY if tests pass, the COO-Agent (using the `git_merge` skill) merges the branch to `main`. If tests fail, the COO delegates repair back to a worker.
+## Article VIII: The Lean Orchestrator (Single-Agent Doctrine)
+
+**There is no internal fleet. There is only the God-Agent orchestrating external Cloud Workers.**
+
+Asclepius has evolved from a simulated multi-agent chat room into a lean, single-agent backend orchestrator. Internal agent communication (Command Center chat) is eliminated as overhead. 
+
+### The God-Agent (Lead Architect & Verifier)
+The God-Agent is the single locus of control within Asclepius. It holds all credentials, controls all tools, and acts as the Lead Developer.
+*   **Role:** Project Planning, Task Granularization, Delegation, and Quality Assurance.
+*   **Capabilities:** 
+    *   Breaks down complex project goals into granular, independent tasks.
+    *   Controls multiple external identities (Gmail accounts / Jules access tokens).
+    *   Operates GitHub Desktop / Git CLI for version control.
+    *   Runs the local Sandbox testing environment.
+
+### The Cloud Workers (Jules)
+The "workers" are no longer internal Asclepius agents. They are stateless, specialized instances of Google's `jules.google.com` (Jules).
+*   **Role:** Raw Code Generation and Heavy Compute.
+*   **Capabilities:**
+    *   The God-Agent delegates tasks in parallel to multiple Jules instances via different authenticated accounts.
+    *   Jules acts as the pure "muscle", executing the coding tasks and submitting code.
 
 ### Enforcement in Code
 - **Whitelisted Backend Commands:** The `/api/git/exec` endpoint strictly blocks destructive bash commands (`rm`, `del`, arbitrary scripts). It only allows specific `git` operations.
 - **Merge Restrictions:** The `mergeBranch` function in `src/services/gitOps.ts` explicitly blocks any agent without the `git_merge` skill from executing a merge.
 
-> **Test:** "Are all commits on GitHub attributed to the unique `[name].agent@gmail.com` identities rather than a generic bot? Are merges strictly controlled by the COO?" If the answer is no, Article VIII is violated.
+> **Test:** "Are all commits on GitHub attributed to the unique `[name].agent@gmail.com` identities rather than a generic bot? Are merges strictly controlled by the God-Agent?" If the answer is no, Article VIII is violated.
 
 ---
 
