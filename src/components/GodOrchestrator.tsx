@@ -130,13 +130,41 @@ export function GodOrchestrator({ settings, godAgent, projects, sandboxRuns, onU
         throw new Error(submitRes.message);
       }
 
-      // 3. Wait for Jules simulation to complete
+      // 3. Robust Polling for Jules task completion
       toast("Jules is writing code...", { description: "Generating and pushing to GitHub branch." });
-      await new Promise(r => setTimeout(r, 12000)); 
+      
+      let pollRes = null;
+      let isJulesDone = false;
+      let attempts = 0;
+      
+      while (attempts < 20) { // Max 40 seconds
+        await new Promise(r => setTimeout(r, 2000));
+        pollRes = await julesPollTask(submitRes.taskId, availableWorker.refreshToken, availableWorker.apiEndpoint);
+        
+        if (!pollRes.success || pollRes.task?.status === 'failed' || pollRes.task?.status === 'cancelled') {
+          throw new Error(pollRes.message || pollRes.task?.error || "Jules task failed or cancelled.");
+        }
+        
+        if (pollRes.task?.status === 'success') {
+          isJulesDone = true;
+          break;
+        }
+        
+        // Progress UI incrementally while waiting
+        if (attempts === 3 && onUpdateProjects) {
+          workingProject.goals[workingProject.goals.length - 1].progress = 25;
+          onUpdateProjects([...projects.filter(p => p.id !== projectId), workingProject]);
+        }
+        if (attempts === 8 && onUpdateProjects) {
+          workingProject.goals[workingProject.goals.length - 1].progress = 40;
+          onUpdateProjects([...projects.filter(p => p.id !== projectId), workingProject]);
+        }
+        
+        attempts++;
+      }
 
-      const pollRes = await julesPollTask(submitRes.taskId, availableWorker.refreshToken, availableWorker.apiEndpoint);
-      if (!pollRes.success || pollRes.task?.status === 'failed') {
-        throw new Error(pollRes.message || pollRes.task?.error || "Jules failed");
+      if (!isJulesDone) {
+        throw new Error("Jules task timed out after 40 seconds.");
       }
 
       toast.success("Jules pushed to GitHub!", { description: "Code written and committed." });
@@ -147,28 +175,29 @@ export function GodOrchestrator({ settings, godAgent, projects, sandboxRuns, onU
         onUpdateProjects([...projects.filter(p => p.id !== projectId), workingProject]);
       }
 
-      // 4. GitHub Desktop Pull (Simulate)
+      // 4. GitHub Desktop Pull (Simulate GitOps Sync)
       toast("God-Agent pulling branch", { description: "Fetching code to Sandbox via Git." });
-      await new Promise(r => setTimeout(r, 3000));
+      await new Promise(r => setTimeout(r, 2000));
       
       if (onUpdateProjects) {
-        workingProject.goals[workingProject.goals.length - 1].progress = 80;
+        workingProject.goals[workingProject.goals.length - 1].progress = 75;
         onUpdateProjects([...projects.filter(p => p.id !== projectId), workingProject]);
       }
 
       // 5. Test in Sandbox
       toast("Running Sandbox Tests", { description: "Building and executing." });
-      await new Promise(r => setTimeout(r, 3000));
+      await new Promise(r => setTimeout(r, 2500));
       
       const run: SandboxRun = {
         id: `run-${Date.now()}`,
         projectId: projectId,
         createdAt: new Date().toISOString(),
         status: 'success',
-        code: "console.log('im alive');\n// Mandelbrot code loaded successfully.",
+        code: pollRes?.task?.result || "console.log('im alive');\n// Mandelbrot code loaded successfully.",
         output: ["[Sandbox] Build successful.", "[Sandbox] Tests passed. Ready for merge."],
         errors: []
       };
+      
       if (onUpdateSandboxRuns) {
         onUpdateSandboxRuns([...sandboxRuns, run]);
       }
@@ -178,6 +207,7 @@ export function GodOrchestrator({ settings, godAgent, projects, sandboxRuns, onU
         workingProject.goals[workingProject.goals.length - 1].status = 'completed';
         workingProject.goals[workingProject.goals.length - 1].progress = 100;
         workingProject.status = 'completed';
+        workingProject.completedAt = new Date().toISOString();
         onUpdateProjects([...projects.filter(p => p.id !== projectId), workingProject]);
       }
 
