@@ -43,13 +43,8 @@ export const analyzeCode = async (code: string, apiKey?: string) => {
     return JSON.parse(response.text || "{}");
   } catch (error: any) {
     console.error("Gemini Analysis Error:", error);
-    const isRateLimit = error?.message?.includes("429") || error?.status === 429 || JSON.stringify(error).includes("429") || JSON.stringify(error).includes("RESOURCE_EXHAUSTED");
-    
-    return {
-      bugs: ["Failed to analyze code"],
-      suggestions: [],
-      explanation: isRateLimit ? "⚠️ **Rate Limit Exceeded:** The Gemini API quota has been exhausted. Please check your API key billing details or try again later." : "Analysis service unavailable."
-    };
+    // Rethrow to allow llm.ts Smart Router to catch it and trigger Ollama fallback
+    throw error;
   }
 };
 
@@ -69,12 +64,7 @@ export const chatWithAgent = async (message: string, history: Content[] = [], sy
     return response.text || "I am observing.";
   } catch (error: any) {
     console.error("Agent Chat Error:", error);
-    const isRateLimit = error?.message?.includes("429") || error?.status === 429 || JSON.stringify(error).includes("429") || JSON.stringify(error).includes("RESOURCE_EXHAUSTED");
-    
-    if (isRateLimit) {
-      return "⚠️ **Rate Limit Exceeded:** The Gemini API quota has been exhausted. Please check your plan and billing details at [https://ai.dev/rate-limit](https://ai.dev/rate-limit) or try again later.";
-    }
-    
-    return "My connection to the network is temporarily disrupted.";
+    // Rethrow to allow llm.ts Smart Router to catch it and trigger Ollama fallback
+    throw error;
   }
 };
