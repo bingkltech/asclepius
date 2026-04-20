@@ -1,0 +1,71 @@
+[
+  { 
+    "id": "a0", 
+    "name": "GOD AGENT", 
+    "role": "God-Agent", 
+    "type": "Cloud", 
+    "status": "idle", 
+    "avatarColor": "bg-violet-600",
+    "systemPrompt": "You are the Asclepius God Agent. You orchestrate the entire system."
+  },
+  { 
+    "id": "a1", 
+    "name": "Athena", 
+    "role": "Architect", 
+    "type": "Local", 
+    "status": "idle", 
+    "avatarColor": "bg-purple-500",
+    "endpoint": "",
+    "token": ""
+  },
+  { 
+    "id": "a2", 
+    "name": "Artemis", 
+    "role": "UI/UX Expert", 
+    "type": "Cloud", 
+    "status": "idle", 
+    "avatarColor": "bg-pink-500",
+    "endpoint": "",
+    "token": ""
+  },
+  { 
+    "id": "a3", 
+    "name": "James", 
+    "role": "Dev Expert", 
+    "type": "Cloud", 
+    "status": "idle", 
+    "avatarColor": "bg-emerald-500",
+    "endpoint": "",
+    "token": ""
+  },
+  { 
+    "id": "a4", 
+    "name": "Jules(likha)", 
+    "role": "UI/UX Expert", 
+    "type": "Cloud", 
+    "status": "idle", 
+    "avatarColor": "bg-blue-500",
+    "endpoint": "",
+    "token": ""
+  },
+  { 
+    "id": "a5", 
+    "name": "Apollo", 
+    "role": "QA Reviewer", 
+    "type": "Cloud", 
+    "status": "idle", 
+    "avatarColor": "bg-amber-500",
+    "endpoint": "",
+    "token": ""
+  },
+  { 
+    "id": "a6", 
+    "name": "Jasmine", 
+    "role": "Dev Expert", 
+    "type": "Cloud", 
+    "status": "idle", 
+    "avatarColor": "bg-teal-500",
+    "endpoint": "",
+    "token": ""
+  }
+]

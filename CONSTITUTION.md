@@ -28,96 +28,38 @@ This means:
 
 ---
 
-## Article II — Sovereign Agent Identity
+## Article II — The Resource-Oriented Architecture (Brains vs. Seats)
 
-**Every agent IS a Google Identity. The agent and the account are the same entity.**
+**An Agent is NOT a Worker. A Worker is NOT an Agent.**
 
-Each agent in the Asclepius fleet owns a real Google account (Gmail). This is not just an API key assignment — the agent IS that digital identity. Once authenticated via OAuth, the agent gains sovereign access to the entire Google ecosystem under that account.
+The greatest architectural sin is conflating the intelligence with the executor. Asclepius strictly separates these concepts into the Resource-Oriented Workforce model:
 
-```
-God-Agent        IS    asclepius.god@gmail.com
-COO-Agent        IS    asclepius.coo@gmail.com
-Jules-Bridge     IS    asclepius.bridge@gmail.com
-Healer-01        IS    asclepius.healer@gmail.com
-Spawned-Worker   IS    asclepius.worker01@gmail.com
-```
+### 1. Agents (The Brains)
+The AI profiles. They contain the LLM provider configuration (Gemini, Claude, Ollama), the System Prompts, and the cognitive capabilities (Skills). 
+*   **The God Agent** is the supreme orchestrator. It sits alone in the Agent Fleet initially, holding absolute authority.
+*   More Agents (e.g., "Senior Frontend Dev") can be added to the Agent Fleet, but they possess no execution tools of their own.
 
-### What Sovereign Identity Unlocks (Per Agent)
+### 2. Workers (The Seats / Identities)
+Workers are persistent, named accounts (e.g., Athena, Artemis, James, Jasmine). They are not AIs. They are "seats" that can hold external credentials.
+*   **A worker is an Identity.** James might be a `jules.google.com` account. Jasmine might be a CapCut API account.
+*   Workers execute tasks by "wearing" an Agent Brain. 
 
-Once the Human Operator authenticates an agent's Google account (one-time OAuth flow), that agent autonomously gains:
+### 3. Tools (The Hands)
+The specific software endpoints and applications that Workers are authorized to use.
+*   Examples: `jules.google` API, CapCut, Figma, Local Terminal, Browser.
 
-| Capability | Google Service | What The Agent Can Do |
-|---|---|---|
-| 🧠 Code Generation | `jules.google` | Create its own Jules instances, send coding tasks |
-| 📧 Email (future) | Gmail API | Read notifications, PR review emails, error alerts |
-| 📁 Storage (future) | Google Drive | Store generated code, logs, project files |
-| 📅 Scheduling (future) | Google Calendar | Schedule tasks, set reminders |
-| 🔑 Self-Healing Auth | Google OAuth | Refresh its own tokens autonomously |
+### 4. Skills (The Knowledge)
+Skill Seekers (`skill-seekers` python CLI) pre-compiles framework documentation into `.skill.md` assets. These are injected into an Agent's context window to provide instant domain expertise without permanent token bloat.
 
-### The Identity Object (Conceptual Schema)
+### 5. Graphify (The Map)
+The underlying system that parses your local codebase to build a semantic Knowledge Graph, allowing the God Agent to understand cross-file dependencies and architecture before deploying Workers.
 
-```typescript
-interface AgentIdentity {
-  agentId: string;               // Agent ID ("god", "coo", "a2", "a3")
-  email: string;                 // The agent's own Gmail account
-  google: {
-    accessToken: string;         // OAuth access token
-    refreshToken: string;        // For autonomous token renewal
-    expiresAt: number;           // Token expiry timestamp
-    scopes: string[];            // Granted scopes (jules, gmail, drive, etc.)
-    quotaUsed: number;           // Daily API calls consumed under this identity
-  };
-  github: {
-    token: string;               // PAT or OAuth token for gh CLI
-    username: string;            // GitHub username linked to this agent
-    scope: string[];             // e.g., ["repo", "read:user"]
-  };
-  authenticatedAt: string;       // ISO timestamp of last successful OAuth
-  isAuthenticated: boolean;      // Whether OAuth has been completed
-}
-```
+### Execution Flow
+1. **God Agent** receives the goal and decomposes it.
+2. It realizes it needs to edit a video. It selects the **Video Editor Agent** (Brain).
+3. It assigns that Brain to **Jasmine** (Worker) because Jasmine possesses the **CapCut** (Tool).
 
-### The One-Time Auth Flow
-
-```
-Human opens Settings → Agent Credentials tab → Clicks "Authenticate" for God-Agent
-    │
-    ▼
-Browser opens Google OAuth consent screen for asclepius.god@gmail.com
-    │
-    ▼
-User grants permissions (jules, gmail, drive, calendar, etc.)
-    │
-    ▼
-OAuth callback returns access_token + refresh_token
-    │
-    ▼
-Asclepius stores tokens in encrypted vault (asclepius.config.enc)
-    │
-    ▼
-God-Agent is now SOVEREIGN ✅ — can autonomously:
-    ├── Create jules.google coding instances
-    ├── (future) Read its Gmail inbox
-    ├── (future) Store files in its Google Drive
-    └── Refresh its own tokens when they expire
-```
-
-### Scaling the Fleet
-
-To add more compute capacity:
-1. Create a new Gmail account: `asclepius.worker05@gmail.com`
-2. God-Agent spawns: `/spawn Worker-05 "Frontend Developer"`
-3. Human authenticates the new agent's Google account (one-time)
-4. Worker-05 now has its own jules.google quota, its own email, its own identity
-5. **Fleet capacity increases by 1,500 free API calls/day per new agent**
-
-### Zero Cross-Contamination
-
-- Each agent's credentials are stored in an encrypted vault (`asclepius.config.enc`), mapped to that agent's ID.
-- When a process is spawned (e.g., `gh` CLI), authentication is injected via environment variables (`GH_TOKEN`), never from global state.
-- Agent A's email quota is never consumed by Agent B. Agent A's GitHub token is never used by Agent B.
-
-> **Test:** "Can Agent A (asclepius.god@gmail.com) create a jules.google instance AND Agent B (asclepius.healer@gmail.com) push a PR to GitHub simultaneously, each using only their own credentials?" If the answer is no, Article II is violated.
+> **Test:** "If you want to switch James from using Gemini to Claude, do you have to delete James?" If the answer is yes, Article II is violated. James is just a seat; the Brain is dynamically swappable.
 
 ---
 
