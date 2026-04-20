@@ -493,8 +493,12 @@ export function AgentConfig({ agent, onSave, open, onOpenChange }: AgentConfigPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="resize overflow-hidden flex flex-col bg-background/95 backdrop-blur-xl border-border/50 p-0 max-w-none w-[800px] h-[650px] min-w-[600px] min-h-[400px] max-w-[95vw] max-h-[95vh]"
-        style={{ transform: `translate(calc(-50% + ${position.x}px), calc(-50% + ${position.y}px))` }}>
+      <DialogContent className="resize overflow-hidden flex flex-col bg-background/95 backdrop-blur-xl border-border/50 p-0 max-w-none w-[800px] h-[650px] min-w-[600px] min-h-[400px] max-w-[95vw] max-h-[95vh] !translate-x-0 !translate-y-0"
+        style={{
+          top: `calc(50vh - min(325px, 47.5vh) + ${position.y}px)`,
+          left: `calc(50vw - min(400px, 47.5vw) + ${position.x}px)`,
+          transform: 'none'
+        }}>
         {/* Header */}
         <div
           className="px-6 pt-6 pb-4 border-b border-border/20 cursor-move select-none"

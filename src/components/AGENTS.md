@@ -100,7 +100,7 @@ Every agent emits periodic liveness signals:
 | Agent | Interval | Max Missed | Reason |
 |---|---|---|---|
 | God-Agent | 5s | 5 | Critical — faster pulse, higher tolerance |
-| All Workers | 10s | 3 | Standard monitoring |
+| All Workers | 1m  | 3 | Standard monitoring |
 
 **Degradation cascade:** Alive → Degraded (1 miss) → Unresponsive (2+ miss) → Dead (max miss exceeded)
 
