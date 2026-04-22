@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { usePersistentState } from './hooks/usePersistentState';
 import { 
   Zap, 
@@ -186,10 +186,10 @@ export default function App() {
   const [isScanning, setIsScanning] = useState(false);
 
   const handleScanProject = async (workerId: string) => {
-    if (!activeProject) return;
+    if (!activeProjectMemo) return;
     setIsScanning(true);
     try {
-      const result = await SkillSeekersBridge.createFromProject(activeProject.localPath);
+      const result = await SkillSeekersBridge.createFromProject(activeProjectMemo.localPath);
       if (result.success) {
         const skillPath = `${result.outputPath}/SKILL.md`;
         setAgentKnowledgeAssets(prev => ({
@@ -382,6 +382,10 @@ export default function App() {
     { id: "logs", label: "System Logs", icon: Terminal, locked: true },
     { id: "settings", label: "Settings", icon: Settings, locked: true },
   ];
+
+  // Performance optimization: Memoize active project to prevent O(N * M) lookups during worker mapping/filtering
+  const activeProjectMemo = useMemo(() => projects.find(p => p.id === activeProjectId), [projects, activeProjectId]);
+  const activeProjectWorkerIds = useMemo(() => new Set(activeProjectMemo?.assignedWorkerIds || []), [activeProjectMemo]);
 
   const activeWorkerConfig = workers.find(w => w.id === configuringWorkerId);
   const activeDirective = activeWorkerConfig ? (workerDirectives[activeWorkerConfig.id] || '') : '';
@@ -727,14 +731,14 @@ export default function App() {
                     </div>
                     <div>
                       <div className="flex items-center gap-2 mb-0.5">
-                        <h3 className="text-sm font-bold text-zinc-100">{projects.find(p => p.id === activeProjectId)?.name || 'Project'}</h3>
+                        <h3 className="text-sm font-bold text-zinc-100">{activeProjectMemo?.name || 'Project'}</h3>
                         <div className="relative flex items-center">
                           <button 
                             onClick={() => setIsBranchDropdownOpen(!isBranchDropdownOpen)}
                             className="px-2 py-0.5 bg-zinc-800 text-zinc-300 text-[10px] font-mono rounded border border-zinc-700 outline-none hover:border-zinc-500 hover:text-zinc-100 focus:border-indigo-500 transition-colors cursor-pointer flex items-center gap-1.5"
                           >
                             <GitBranch className="w-3 h-3 text-zinc-400" />
-                            {projects.find(p => p.id === activeProjectId)?.activeBranch || 'main'}
+                            {activeProjectMemo?.activeBranch || 'main'}
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cn("transition-transform", isBranchDropdownOpen ? "rotate-180" : "")}><polyline points="6 9 12 15 18 9"></polyline></svg>
                           </button>
                           
@@ -800,7 +804,7 @@ export default function App() {
                                                 className="flex items-center justify-between px-3 py-1.5 hover:bg-indigo-500/10 text-left transition-colors group"
                                               >
                                                 <div className="flex items-center gap-2">
-                                                  {(projects.find(p => p.id === activeProjectId)?.activeBranch === branch.name) ? (
+                                                  {(activeProjectMemo?.activeBranch === branch.name) ? (
                                                     <CheckCircle2 className="w-3.5 h-3.5 text-zinc-100" />
                                                   ) : (
                                                     <GitBranch className="w-3.5 h-3.5 text-zinc-500 group-hover:text-indigo-400" />
@@ -839,7 +843,7 @@ export default function App() {
                         </div>
                       </div>
                       <p className="text-xs text-zinc-500 truncate max-w-sm font-mono">
-                        {projects.find(p => p.id === activeProjectId)?.localPath}
+                        {activeProjectMemo?.localPath}
                       </p>
                     </div>
                   </div>
@@ -857,7 +861,7 @@ export default function App() {
                         variant="outline" 
                         size="sm" 
                         onClick={() => {
-                          const project = projects.find(p => p.id === activeProjectId);
+                          const project = activeProjectMemo;
                           if (project?.localPath) {
                             fetch('/api/run-command', {
                               method: 'POST',
@@ -888,7 +892,7 @@ export default function App() {
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <Server className="w-4 h-4 text-blue-400" />
-                    <h3 className="text-sm font-semibold text-zinc-100">Project Team ({projects.find(p => p.id === activeProjectId)?.assignedWorkerIds.length || 0})</h3>
+                    <h3 className="text-sm font-semibold text-zinc-100">Project Team ({activeProjectMemo?.assignedWorkerIds.length || 0})</h3>
                   </div>
                   <Button variant="ghost" size="sm" onClick={() => setIsAddingWorker(true)} className="h-7 text-xs text-blue-400 hover:bg-blue-500/10 transition-colors">
                     <UserPlus className="w-3 h-3 mr-1" /> Recruit Worker
@@ -897,7 +901,7 @@ export default function App() {
                 
                 {/* Scalable worker tags container */}
                 <div className="flex flex-wrap gap-2 max-h-[120px] overflow-y-auto pr-2 custom-scrollbar">
-                  {workers.filter(w => projects.find(p => p.id === activeProjectId)?.assignedWorkerIds.includes(w.id)).map(worker => (
+                  {workers.filter(w => activeProjectWorkerIds.has(w.id)).map(worker => (
                     <div key={worker.id} 
                          onClick={() => { setConfiguringWorkerId(worker.id); setIsAddingWorker(false); }}
                          className={cn("group flex items-center gap-2 bg-zinc-900 border rounded-lg pr-3 pl-1 py-1 cursor-pointer transition-all", 
@@ -916,7 +920,7 @@ export default function App() {
                       </div>
                     </div>
                   ))}
-                  {(!projects.find(p => p.id === activeProjectId)?.assignedWorkerIds.length) && !isAddingWorker && (
+                  {(!activeProjectMemo?.assignedWorkerIds.length) && !isAddingWorker && (
                     <div className="w-full text-center py-2 text-xs text-zinc-500">
                       No workers assigned yet.
                     </div>
@@ -936,10 +940,10 @@ export default function App() {
                   </div>
                   
                   <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
-                    {workers.filter(w => !projects.find(p => p.id === activeProjectId)?.assignedWorkerIds.includes(w.id)).length === 0 ? (
+                    {workers.filter(w => !activeProjectWorkerIds.has(w.id)).length === 0 ? (
                       <p className="text-xs text-zinc-500 italic py-4 text-center">All available workers are already on this project.</p>
                     ) : (
-                      workers.filter(w => !projects.find(p => p.id === activeProjectId)?.assignedWorkerIds.includes(w.id)).map(w => (
+                      workers.filter(w => !activeProjectWorkerIds.has(w.id)).map(w => (
                         <div key={w.id} className="flex items-center justify-between p-3 border border-zinc-800/80 rounded-lg hover:bg-zinc-800/50 transition-colors">
                            <div className="flex items-center gap-3">
                              <div className={cn("w-8 h-8 rounded-md flex items-center justify-center text-xs font-bold text-white", w.avatarColor)}>
@@ -970,7 +974,7 @@ export default function App() {
                     <Button variant="ghost" size="sm" onClick={() => setIsAddingWorker(false)} className="text-zinc-400 h-8">Cancel</Button>
                   </div>
                 </div>
-              ) : activeWorkerConfig && projects.find(p => p.id === activeProjectId)?.assignedWorkerIds.includes(activeWorkerConfig.id) ? (
+              ) : activeWorkerConfig && activeProjectWorkerIds.has(activeWorkerConfig.id) ? (
                 <div className={cn("bg-zinc-900 border rounded-xl p-5 shadow-sm transition-all flex flex-col flex-1", isWorkerConnected ? "border-violet-500/30" : "border-zinc-800/80")}>
                   <div className="flex items-center justify-between mb-4 border-b border-zinc-800 pb-3">
                     <div className="flex items-center gap-3">
@@ -1432,7 +1436,7 @@ export default function App() {
                                      <Button
                                        variant="outline"
                                        size="sm"
-                                       disabled={isScanning || !activeProject}
+                                       disabled={isScanning || !activeProjectMemo}
                                        onClick={() => handleScanProject(worker.id)}
                                        className="w-full h-8 text-[11px] bg-emerald-500/5 hover:bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
                                      >
