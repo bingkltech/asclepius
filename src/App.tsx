@@ -387,6 +387,10 @@ export default function App() {
   const activeProjectMemo = useMemo(() => projects.find(p => p.id === activeProjectId), [projects, activeProjectId]);
   const activeProjectWorkerIds = useMemo(() => new Set(activeProjectMemo?.assignedWorkerIds || []), [activeProjectMemo]);
 
+  // Performance optimization: Memoize workers lists to avoid re-filtering on every render
+  const projectTeamWorkers = useMemo(() => workers.filter(w => activeProjectWorkerIds.has(w.id)), [workers, activeProjectWorkerIds]);
+  const availableWorkersToRecruit = useMemo(() => workers.filter(w => !activeProjectWorkerIds.has(w.id)), [workers, activeProjectWorkerIds]);
+
   const activeWorkerConfig = workers.find(w => w.id === configuringWorkerId);
   const activeDirective = activeWorkerConfig ? (workerDirectives[activeWorkerConfig.id] || '') : '';
   const isWorkerConnected = activeWorkerConfig ? !!workerConnections[activeWorkerConfig.id] : false;
@@ -901,7 +905,7 @@ export default function App() {
                 
                 {/* Scalable worker tags container */}
                 <div className="flex flex-wrap gap-2 max-h-[120px] overflow-y-auto pr-2 custom-scrollbar">
-                  {workers.filter(w => activeProjectWorkerIds.has(w.id)).map(worker => (
+                  {projectTeamWorkers.map(worker => (
                     <div key={worker.id} 
                          onClick={() => { setConfiguringWorkerId(worker.id); setIsAddingWorker(false); }}
                          className={cn("group flex items-center gap-2 bg-zinc-900 border rounded-lg pr-3 pl-1 py-1 cursor-pointer transition-all", 
@@ -940,10 +944,10 @@ export default function App() {
                   </div>
                   
                   <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
-                    {workers.filter(w => !activeProjectWorkerIds.has(w.id)).length === 0 ? (
+                    {availableWorkersToRecruit.length === 0 ? (
                       <p className="text-xs text-zinc-500 italic py-4 text-center">All available workers are already on this project.</p>
                     ) : (
-                      workers.filter(w => !activeProjectWorkerIds.has(w.id)).map(w => (
+                      availableWorkersToRecruit.map(w => (
                         <div key={w.id} className="flex items-center justify-between p-3 border border-zinc-800/80 rounded-lg hover:bg-zinc-800/50 transition-colors">
                            <div className="flex items-center gap-3">
                              <div className={cn("w-8 h-8 rounded-md flex items-center justify-center text-xs font-bold text-white", w.avatarColor)}>
