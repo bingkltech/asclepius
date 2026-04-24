@@ -143,6 +143,14 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
   static autoAssign(tasks: PipelineTask[], agents: AgentConfig[]): PipelineTask[] {
     const available = agents.filter(a => !a.isLeadAgent && a.status !== 'offline');
 
+    // Create an O(1) lookup map for agent current loads instead of filtering tasks inside the loop
+    const agentLoadMap = new Map<string, number>();
+    for (const task of tasks) {
+      if (task.assignedAgentId && (task.status === 'working' || task.status === 'assigned')) {
+        agentLoadMap.set(task.assignedAgentId, (agentLoadMap.get(task.assignedAgentId) || 0) + 1);
+      }
+    }
+
     for (const task of tasks) {
       if (task.assignedAgentId) continue;
 
@@ -150,13 +158,16 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
       let bestScore = -1;
 
       for (const agent of available) {
-        const skillMatch = task.requiredSkills.filter(s => agent.skills.includes(s)).length;
+        let skillMatch = 0;
+        for (const reqSkill of task.requiredSkills) {
+          if (agent.skills.includes(reqSkill)) {
+            skillMatch++;
+          }
+        }
+
         const coverage = task.requiredSkills.length > 0 ? skillMatch / task.requiredSkills.length : 0;
 
-        const currentLoad = tasks.filter(t =>
-          t.assignedAgentId === agent.id &&
-          (t.status === 'working' || t.status === 'assigned')
-        ).length;
+        const currentLoad = agentLoadMap.get(agent.id) || 0;
         const maxConcurrent = agent.maxConcurrentTasks ?? 1;
         const loadPenalty = currentLoad >= maxConcurrent ? -100 : 0;
 
@@ -169,6 +180,8 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
 
       if (bestAgent && bestScore > -100) {
         task.assignedAgentId = bestAgent.id;
+        // Update the load map so subsequent tasks see the new load
+        agentLoadMap.set(bestAgent.id, (agentLoadMap.get(bestAgent.id) || 0) + 1);
         task.logs.push(`[${new Date().toISOString()}] Assigned to ${bestAgent.name} (score: ${bestScore.toFixed(2)})`);
       }
     }
@@ -179,10 +192,18 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
   // ─── Phase 3: DAG Tick ────────────────────────────────────────────
 
   static tick(plan: ExecutionPlan, agents: AgentConfig[]): ExecutionPlan {
+    // Create an O(1) lookup map for task dependencies instead of finding them in the array
+    const taskMap = new Map<string, PipelineTask>();
+    for (const task of plan.tasks) {
+      taskMap.set(task.id, task);
+    }
+
+    let allDone = true;
+
     for (const task of plan.tasks) {
       if (task.status === 'blocked') {
         const allDepsMet = task.dependencies.every(depId => {
-          const dep = plan.tasks.find(t => t.id === depId);
+          const dep = taskMap.get(depId);
           return dep?.status === 'completed';
         });
         if (allDepsMet) {
@@ -190,9 +211,12 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
           task.logs.push(`[${new Date().toISOString()}] Dependencies resolved — now pending`);
         }
       }
+
+      if (task.status !== 'completed' && task.status !== 'cancelled') {
+        allDone = false;
+      }
     }
 
-    const allDone = plan.tasks.every(t => t.status === 'completed' || t.status === 'cancelled');
     if (allDone && plan.status === 'active') {
       plan.status = 'completed';
       plan.completedAt = Date.now();
