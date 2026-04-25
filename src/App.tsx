@@ -84,6 +84,25 @@ import fleetConfig from './config/fleet.json';
 
 const initialAgents: Worker[] = fleetConfig as Worker[];
 
+const STATUS_CONFIG: Record<string, { icon: any; color: string; bg: string; border: string }> = {
+  blocked:   { icon: Lock,          color: 'text-zinc-600',   bg: 'bg-zinc-900',        border: 'border-zinc-800' },
+  pending:   { icon: CircleDashed,  color: 'text-amber-500',  bg: 'bg-[#09090b]',      border: 'border-zinc-800 hover:border-zinc-700' },
+  assigned:  { icon: ArrowRight,    color: 'text-blue-400',   bg: 'bg-blue-500/5',     border: 'border-blue-500/20' },
+  working:   { icon: Loader2,       color: 'text-violet-400', bg: 'bg-violet-500/10',  border: 'border-violet-500/40' },
+  in_review: { icon: Search,        color: 'text-cyan-400',   bg: 'bg-cyan-500/10',    border: 'border-cyan-500/30' },
+  revision:  { icon: AlertTriangle, color: 'text-amber-400',  bg: 'bg-amber-500/10',   border: 'border-amber-500/30' },
+  completed: { icon: CheckCircle2,  color: 'text-emerald-500',bg: 'bg-zinc-900',       border: 'border-zinc-800' },
+  failed:    { icon: AlertTriangle, color: 'text-red-400',    bg: 'bg-red-500/10',     border: 'border-red-500/30' },
+  cancelled: { icon: CircleDashed,  color: 'text-zinc-600',   bg: 'bg-zinc-900',       border: 'border-zinc-800' },
+};
+
+const PRIORITY_COLORS: Record<string, string> = {
+  critical: 'bg-red-500/20 text-red-400 border-red-500/30',
+  high: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+  medium: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  low: 'bg-zinc-800 text-zinc-500 border-zinc-700',
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = usePersistentState('asclepius_active_tab', 'projects');
   
@@ -387,7 +406,14 @@ export default function App() {
   const activeProjectMemo = useMemo(() => projects.find(p => p.id === activeProjectId), [projects, activeProjectId]);
   const activeProjectWorkerIds = useMemo(() => new Set(activeProjectMemo?.assignedWorkerIds || []), [activeProjectMemo]);
 
-  const activeWorkerConfig = workers.find(w => w.id === configuringWorkerId);
+  // Performance optimization: Memoize workers to prevent O(N * M) lookups during task rendering
+  const workerMap = useMemo(() => {
+    const map = new Map<string, Worker>();
+    workers.forEach(w => map.set(w.id, w));
+    return map;
+  }, [workers]);
+
+  const activeWorkerConfig = workerMap.get(configuringWorkerId || '') || null;
   const activeDirective = activeWorkerConfig ? (workerDirectives[activeWorkerConfig.id] || '') : '';
   const isWorkerConnected = activeWorkerConfig ? !!workerConnections[activeWorkerConfig.id] : false;
 
@@ -599,26 +625,9 @@ export default function App() {
                 ) : (
                   <div className="p-3 space-y-2 overflow-y-auto custom-scrollbar flex-1">
                     {dagTasks.map((task, idx) => {
-                      const assignee = workers.find(w => w.id === task.assignedAgentId);
-                      const statusConfig: Record<string, { icon: any; color: string; bg: string; border: string }> = {
-                        blocked:   { icon: Lock,          color: 'text-zinc-600',   bg: 'bg-zinc-900',        border: 'border-zinc-800' },
-                        pending:   { icon: CircleDashed,  color: 'text-amber-500',  bg: 'bg-[#09090b]',      border: 'border-zinc-800 hover:border-zinc-700' },
-                        assigned:  { icon: ArrowRight,    color: 'text-blue-400',   bg: 'bg-blue-500/5',     border: 'border-blue-500/20' },
-                        working:   { icon: Loader2,       color: 'text-violet-400', bg: 'bg-violet-500/10',  border: 'border-violet-500/40' },
-                        in_review: { icon: Search,        color: 'text-cyan-400',   bg: 'bg-cyan-500/10',    border: 'border-cyan-500/30' },
-                        revision:  { icon: AlertTriangle, color: 'text-amber-400',  bg: 'bg-amber-500/10',   border: 'border-amber-500/30' },
-                        completed: { icon: CheckCircle2,  color: 'text-emerald-500',bg: 'bg-zinc-900',       border: 'border-zinc-800' },
-                        failed:    { icon: AlertTriangle, color: 'text-red-400',    bg: 'bg-red-500/10',     border: 'border-red-500/30' },
-                        cancelled: { icon: CircleDashed,  color: 'text-zinc-600',   bg: 'bg-zinc-900',       border: 'border-zinc-800' },
-                      };
-                      const sc = statusConfig[task.status] || statusConfig.pending;
+                      const assignee = task.assignedAgentId ? workerMap.get(task.assignedAgentId) : undefined;
+                      const sc = STATUS_CONFIG[task.status] || STATUS_CONFIG.pending;
                       const StatusIcon = sc.icon;
-                      const priorityColors: Record<string, string> = {
-                        critical: 'bg-red-500/20 text-red-400 border-red-500/30',
-                        high: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-                        medium: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-                        low: 'bg-zinc-800 text-zinc-500 border-zinc-700',
-                      };
                       const isWorking = task.status === 'working';
 
                       return (
@@ -637,7 +646,7 @@ export default function App() {
                             {task.description && <p className="text-[10px] text-zinc-500 mt-0.5 line-clamp-2">{task.description}</p>}
                             <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                               {/* Priority badge */}
-                              <span className={cn("px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border", priorityColors[task.priority] || priorityColors.medium)}>
+                              <span className={cn("px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border", PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.medium)}>
                                 {task.priority}
                               </span>
                               {/* Skills */}
