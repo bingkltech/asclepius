@@ -1,3 +1,7 @@
 ## 2024-04-22 - Optimized App.tsx array lookups inside list mapping
 **Learning:** O(N) array lookups (`projects.find`) were nested inside O(M) component mapping functions (`workers.map` and `workers.filter`) within the primary UI render path in `App.tsx`. Because `workers` and `projects` scales with usage, this pattern causes an O(N*M) rendering complexity drop. The fix is applying `useMemo` specifically outside the loop context to establish an O(1) property/Set lookup reference (`activeProjectWorkerIds.has(w.id)`). This prevents unnecessary nested list scanning on every frame render.
 **Action:** Always hoist complex derivations like array lookups out of list mappers/filters within React components and use `useMemo` when rendering dynamic lists. Look for `.find()` inside `.filter()` as a key performance anti-pattern.
+
+## 2024-04-24 - React anti-pattern: Object creation and O(N) searches inside map iteration
+**Learning:** In `src/App.tsx`, we found `statusConfig` and `priorityColors` objects were being instantiated inside a `.map` iterator rendering `dagTasks`. Compounded with an O(N) `.find()` lookup inside the loop (`workers.find(w => w.id === task.assignedAgentId)`), this creates O(N * M) performance overhead on the main UI thread during renders.
+**Action:** Always extract static mapping objects and arrays OUTSIDE React functional components. When iterating over arrays that need to lookup secondary lists, create an O(1) Map/Dictionary with `useMemo` ahead of the loop iteration to turn O(N * M) time complexity into O(N + M).
