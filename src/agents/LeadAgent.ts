@@ -143,6 +143,14 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
   static autoAssign(tasks: PipelineTask[], agents: AgentConfig[]): PipelineTask[] {
     const available = agents.filter(a => !a.isLeadAgent && a.status !== 'offline');
 
+    // Performance: O(N) lookup cache to prevent O(N*A) complexity
+    const agentLoads = new Map<string, number>();
+    for (const t of tasks) {
+      if (t.assignedAgentId && (t.status === 'working' || t.status === 'assigned')) {
+        agentLoads.set(t.assignedAgentId, (agentLoads.get(t.assignedAgentId) || 0) + 1);
+      }
+    }
+
     for (const task of tasks) {
       if (task.assignedAgentId) continue;
 
@@ -153,10 +161,7 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
         const skillMatch = task.requiredSkills.filter(s => agent.skills.includes(s)).length;
         const coverage = task.requiredSkills.length > 0 ? skillMatch / task.requiredSkills.length : 0;
 
-        const currentLoad = tasks.filter(t =>
-          t.assignedAgentId === agent.id &&
-          (t.status === 'working' || t.status === 'assigned')
-        ).length;
+        const currentLoad = agentLoads.get(agent.id) || 0;
         const maxConcurrent = agent.maxConcurrentTasks ?? 1;
         const loadPenalty = currentLoad >= maxConcurrent ? -100 : 0;
 
@@ -169,6 +174,7 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
 
       if (bestAgent && bestScore > -100) {
         task.assignedAgentId = bestAgent.id;
+        agentLoads.set(bestAgent.id, (agentLoads.get(bestAgent.id) || 0) + 1);
         task.logs.push(`[${new Date().toISOString()}] Assigned to ${bestAgent.name} (score: ${bestScore.toFixed(2)})`);
       }
     }
@@ -178,13 +184,16 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
 
   // ─── Phase 3: DAG Tick ────────────────────────────────────────────
 
-  static tick(plan: ExecutionPlan, agents: AgentConfig[]): ExecutionPlan {
+  static tick(plan: ExecutionPlan, _agents: AgentConfig[]): ExecutionPlan {
+    // Performance: O(1) lookup cache to prevent O(N^2) complexity
+    const taskStatusMap = new Map<string, TaskStatus>();
+    for (const t of plan.tasks) {
+      taskStatusMap.set(t.id, t.status);
+    }
+
     for (const task of plan.tasks) {
       if (task.status === 'blocked') {
-        const allDepsMet = task.dependencies.every(depId => {
-          const dep = plan.tasks.find(t => t.id === depId);
-          return dep?.status === 'completed';
-        });
+        const allDepsMet = task.dependencies.every(depId => taskStatusMap.get(depId) === 'completed');
         if (allDepsMet) {
           task.status = 'pending';
           task.logs.push(`[${new Date().toISOString()}] Dependencies resolved — now pending`);
