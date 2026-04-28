@@ -143,6 +143,14 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
   static autoAssign(tasks: PipelineTask[], agents: AgentConfig[]): PipelineTask[] {
     const available = agents.filter(a => !a.isLeadAgent && a.status !== 'offline');
 
+    // Pre-calculate agent load to avoid O(N^2) lookups
+    const agentLoad = new Map<string, number>();
+    for (const task of tasks) {
+      if (task.assignedAgentId && (task.status === 'working' || task.status === 'assigned')) {
+        agentLoad.set(task.assignedAgentId, (agentLoad.get(task.assignedAgentId) || 0) + 1);
+      }
+    }
+
     for (const task of tasks) {
       if (task.assignedAgentId) continue;
 
@@ -153,10 +161,7 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
         const skillMatch = task.requiredSkills.filter(s => agent.skills.includes(s)).length;
         const coverage = task.requiredSkills.length > 0 ? skillMatch / task.requiredSkills.length : 0;
 
-        const currentLoad = tasks.filter(t =>
-          t.assignedAgentId === agent.id &&
-          (t.status === 'working' || t.status === 'assigned')
-        ).length;
+        const currentLoad = agentLoad.get(agent.id) || 0;
         const maxConcurrent = agent.maxConcurrentTasks ?? 1;
         const loadPenalty = currentLoad >= maxConcurrent ? -100 : 0;
 
@@ -170,6 +175,8 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
       if (bestAgent && bestScore > -100) {
         task.assignedAgentId = bestAgent.id;
         task.logs.push(`[${new Date().toISOString()}] Assigned to ${bestAgent.name} (score: ${bestScore.toFixed(2)})`);
+        // Update load to maintain correct penalty calculations for subsequent tasks
+        agentLoad.set(bestAgent.id, (agentLoad.get(bestAgent.id) || 0) + 1);
       }
     }
 
@@ -179,11 +186,16 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
   // ─── Phase 3: DAG Tick ────────────────────────────────────────────
 
   static tick(plan: ExecutionPlan, agents: AgentConfig[]): ExecutionPlan {
+    // Pre-calculate task status map to avoid O(N^2) lookups
+    const taskStatusMap = new Map<string, TaskStatus>();
+    for (const task of plan.tasks) {
+      taskStatusMap.set(task.id, task.status);
+    }
+
     for (const task of plan.tasks) {
       if (task.status === 'blocked') {
         const allDepsMet = task.dependencies.every(depId => {
-          const dep = plan.tasks.find(t => t.id === depId);
-          return dep?.status === 'completed';
+          return taskStatusMap.get(depId) === 'completed';
         });
         if (allDepsMet) {
           task.status = 'pending';
