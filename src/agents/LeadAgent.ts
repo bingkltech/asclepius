@@ -143,6 +143,18 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
   static autoAssign(tasks: PipelineTask[], agents: AgentConfig[]): PipelineTask[] {
     const available = agents.filter(a => !a.isLeadAgent && a.status !== 'offline');
 
+    // ⚡ Bolt: Pre-calculate agent loads to prevent O(T^2 * A) nested lookup performance drop during scheduling
+    const agentLoads = new Map<string, number>();
+    for (const agent of available) {
+      agentLoads.set(agent.id, 0);
+    }
+    for (const task of tasks) {
+      if (task.assignedAgentId && (task.status === 'working' || task.status === 'assigned')) {
+        const load = agentLoads.get(task.assignedAgentId) || 0;
+        agentLoads.set(task.assignedAgentId, load + 1);
+      }
+    }
+
     for (const task of tasks) {
       if (task.assignedAgentId) continue;
 
@@ -153,10 +165,7 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
         const skillMatch = task.requiredSkills.filter(s => agent.skills.includes(s)).length;
         const coverage = task.requiredSkills.length > 0 ? skillMatch / task.requiredSkills.length : 0;
 
-        const currentLoad = tasks.filter(t =>
-          t.assignedAgentId === agent.id &&
-          (t.status === 'working' || t.status === 'assigned')
-        ).length;
+        const currentLoad = agentLoads.get(agent.id) || 0;
         const maxConcurrent = agent.maxConcurrentTasks ?? 1;
         const loadPenalty = currentLoad >= maxConcurrent ? -100 : 0;
 
@@ -169,6 +178,8 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
 
       if (bestAgent && bestScore > -100) {
         task.assignedAgentId = bestAgent.id;
+        // Update the load map dynamically
+        agentLoads.set(bestAgent.id, (agentLoads.get(bestAgent.id) || 0) + 1);
         task.logs.push(`[${new Date().toISOString()}] Assigned to ${bestAgent.name} (score: ${bestScore.toFixed(2)})`);
       }
     }
@@ -179,10 +190,16 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
   // ─── Phase 3: DAG Tick ────────────────────────────────────────────
 
   static tick(plan: ExecutionPlan, agents: AgentConfig[]): ExecutionPlan {
+    // ⚡ Bolt: Pre-calculate map of tasks by ID for O(1) dependency resolution lookup instead of O(N) array search inside a loop
+    const taskMap = new Map<string, PipelineTask>();
+    for (const task of plan.tasks) {
+      taskMap.set(task.id, task);
+    }
+
     for (const task of plan.tasks) {
       if (task.status === 'blocked') {
         const allDepsMet = task.dependencies.every(depId => {
-          const dep = plan.tasks.find(t => t.id === depId);
+          const dep = taskMap.get(depId);
           return dep?.status === 'completed';
         });
         if (allDepsMet) {
