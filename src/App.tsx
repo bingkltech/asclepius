@@ -387,7 +387,10 @@ export default function App() {
   const activeProjectMemo = useMemo(() => projects.find(p => p.id === activeProjectId), [projects, activeProjectId]);
   const activeProjectWorkerIds = useMemo(() => new Set(activeProjectMemo?.assignedWorkerIds || []), [activeProjectMemo]);
 
-  const activeWorkerConfig = workers.find(w => w.id === configuringWorkerId);
+  // Performance optimization: Memoize workers into a Map for O(1) lookups during rendering
+  const workersMap = useMemo(() => new Map(workers.map(w => [w.id, w])), [workers]);
+
+  const activeWorkerConfig = configuringWorkerId ? workersMap.get(configuringWorkerId) : undefined;
   const activeDirective = activeWorkerConfig ? (workerDirectives[activeWorkerConfig.id] || '') : '';
   const isWorkerConnected = activeWorkerConfig ? !!workerConnections[activeWorkerConfig.id] : false;
 
@@ -599,7 +602,7 @@ export default function App() {
                 ) : (
                   <div className="p-3 space-y-2 overflow-y-auto custom-scrollbar flex-1">
                     {dagTasks.map((task, idx) => {
-                      const assignee = workers.find(w => w.id === task.assignedAgentId);
+                      const assignee = task.assignedAgentId ? workersMap.get(task.assignedAgentId) : undefined;
                       const statusConfig: Record<string, { icon: any; color: string; bg: string; border: string }> = {
                         blocked:   { icon: Lock,          color: 'text-zinc-600',   bg: 'bg-zinc-900',        border: 'border-zinc-800' },
                         pending:   { icon: CircleDashed,  color: 'text-amber-500',  bg: 'bg-[#09090b]',      border: 'border-zinc-800 hover:border-zinc-700' },
@@ -1179,7 +1182,7 @@ export default function App() {
                   ) : configuringWorkerId ? (
                     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-right-4">
                       {(() => {
-                         const worker = workers.find(w => w.id === configuringWorkerId);
+                         const worker = configuringWorkerId ? workersMap.get(configuringWorkerId) : undefined;
                          if (!worker) return null;
                          return (
                            <>
