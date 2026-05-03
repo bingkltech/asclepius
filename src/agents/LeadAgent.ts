@@ -143,6 +143,17 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
   static autoAssign(tasks: PipelineTask[], agents: AgentConfig[]): PipelineTask[] {
     const available = agents.filter(a => !a.isLeadAgent && a.status !== 'offline');
 
+    // Pre-calculate agent loads to prevent O(N^2) bottleneck
+    const agentLoads = new Map<string, number>();
+    for (const agent of available) {
+      agentLoads.set(agent.id, 0);
+    }
+    for (const task of tasks) {
+      if (task.assignedAgentId && (task.status === 'working' || task.status === 'assigned')) {
+        agentLoads.set(task.assignedAgentId, (agentLoads.get(task.assignedAgentId) || 0) + 1);
+      }
+    }
+
     for (const task of tasks) {
       if (task.assignedAgentId) continue;
 
@@ -153,10 +164,7 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
         const skillMatch = task.requiredSkills.filter(s => agent.skills.includes(s)).length;
         const coverage = task.requiredSkills.length > 0 ? skillMatch / task.requiredSkills.length : 0;
 
-        const currentLoad = tasks.filter(t =>
-          t.assignedAgentId === agent.id &&
-          (t.status === 'working' || t.status === 'assigned')
-        ).length;
+        const currentLoad = agentLoads.get(agent.id) || 0;
         const maxConcurrent = agent.maxConcurrentTasks ?? 1;
         const loadPenalty = currentLoad >= maxConcurrent ? -100 : 0;
 
@@ -169,6 +177,7 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
 
       if (bestAgent && bestScore > -100) {
         task.assignedAgentId = bestAgent.id;
+        agentLoads.set(bestAgent.id, (agentLoads.get(bestAgent.id) || 0) + 1); // Increment load
         task.logs.push(`[${new Date().toISOString()}] Assigned to ${bestAgent.name} (score: ${bestScore.toFixed(2)})`);
       }
     }
@@ -179,11 +188,20 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
   // ─── Phase 3: DAG Tick ────────────────────────────────────────────
 
   static tick(plan: ExecutionPlan, agents: AgentConfig[]): ExecutionPlan {
+    // Pre-calculate task status map to prevent O(N^2) bottleneck
+    const taskStatusMap = new Map<string, string>();
+    let allDone = true;
+    for (const task of plan.tasks) {
+      taskStatusMap.set(task.id, task.status);
+      if (task.status !== 'completed' && task.status !== 'cancelled') {
+        allDone = false;
+      }
+    }
+
     for (const task of plan.tasks) {
       if (task.status === 'blocked') {
         const allDepsMet = task.dependencies.every(depId => {
-          const dep = plan.tasks.find(t => t.id === depId);
-          return dep?.status === 'completed';
+          return taskStatusMap.get(depId) === 'completed';
         });
         if (allDepsMet) {
           task.status = 'pending';
@@ -192,7 +210,6 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
       }
     }
 
-    const allDone = plan.tasks.every(t => t.status === 'completed' || t.status === 'cancelled');
     if (allDone && plan.status === 'active') {
       plan.status = 'completed';
       plan.completedAt = Date.now();
