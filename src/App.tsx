@@ -391,6 +391,9 @@ export default function App() {
   const activeDirective = activeWorkerConfig ? (workerDirectives[activeWorkerConfig.id] || '') : '';
   const isWorkerConnected = activeWorkerConfig ? !!workerConnections[activeWorkerConfig.id] : false;
 
+  // Performance optimization: O(1) lookup map to prevent O(N*M) bottlenecks inside large render loops
+  const workerMap = useMemo(() => new Map(workers.map(w => [w.id, w])), [workers]);
+
   return (
     <div className="dark flex h-screen bg-[#09090b] text-zinc-50 overflow-hidden font-sans">
       {/* Sidebar */}
@@ -599,7 +602,7 @@ export default function App() {
                 ) : (
                   <div className="p-3 space-y-2 overflow-y-auto custom-scrollbar flex-1">
                     {dagTasks.map((task, idx) => {
-                      const assignee = workers.find(w => w.id === task.assignedAgentId);
+                      const assignee = task.assignedAgentId ? workerMap.get(task.assignedAgentId) : undefined;
                       const statusConfig: Record<string, { icon: any; color: string; bg: string; border: string }> = {
                         blocked:   { icon: Lock,          color: 'text-zinc-600',   bg: 'bg-zinc-900',        border: 'border-zinc-800' },
                         pending:   { icon: CircleDashed,  color: 'text-amber-500',  bg: 'bg-[#09090b]',      border: 'border-zinc-800 hover:border-zinc-700' },
