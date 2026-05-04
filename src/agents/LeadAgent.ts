@@ -143,6 +143,16 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
   static autoAssign(tasks: PipelineTask[], agents: AgentConfig[]): PipelineTask[] {
     const available = agents.filter(a => !a.isLeadAgent && a.status !== 'offline');
 
+    // Pre-calculate agent loads to prevent O(T^2 * A) lookup overhead
+    const agentLoadMap = new Map<string, number>();
+    for (const agent of available) {
+      const load = tasks.filter(t =>
+        t.assignedAgentId === agent.id &&
+        (t.status === 'working' || t.status === 'assigned')
+      ).length;
+      agentLoadMap.set(agent.id, load);
+    }
+
     for (const task of tasks) {
       if (task.assignedAgentId) continue;
 
@@ -153,10 +163,7 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
         const skillMatch = task.requiredSkills.filter(s => agent.skills.includes(s)).length;
         const coverage = task.requiredSkills.length > 0 ? skillMatch / task.requiredSkills.length : 0;
 
-        const currentLoad = tasks.filter(t =>
-          t.assignedAgentId === agent.id &&
-          (t.status === 'working' || t.status === 'assigned')
-        ).length;
+        const currentLoad = agentLoadMap.get(agent.id) ?? 0;
         const maxConcurrent = agent.maxConcurrentTasks ?? 1;
         const loadPenalty = currentLoad >= maxConcurrent ? -100 : 0;
 
@@ -170,6 +177,8 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
       if (bestAgent && bestScore > -100) {
         task.assignedAgentId = bestAgent.id;
         task.logs.push(`[${new Date().toISOString()}] Assigned to ${bestAgent.name} (score: ${bestScore.toFixed(2)})`);
+        // Update load dynamically upon assignment
+        agentLoadMap.set(bestAgent.id, (agentLoadMap.get(bestAgent.id) ?? 0) + 1);
       }
     }
 
@@ -179,11 +188,17 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
   // ─── Phase 3: DAG Tick ────────────────────────────────────────────
 
   static tick(plan: ExecutionPlan, agents: AgentConfig[]): ExecutionPlan {
+    // Pre-calculate map for O(1) dependency lookups
+    const taskById = new Map<string, TaskStatus>();
+    for (const task of plan.tasks) {
+      taskById.set(task.id, task.status);
+    }
+
     for (const task of plan.tasks) {
       if (task.status === 'blocked') {
         const allDepsMet = task.dependencies.every(depId => {
-          const dep = plan.tasks.find(t => t.id === depId);
-          return dep?.status === 'completed';
+          const depStatus = taskById.get(depId);
+          return depStatus === 'completed';
         });
         if (allDepsMet) {
           task.status = 'pending';
