@@ -1,26 +1,53 @@
-# Asclepius — Active TODO / Future Work
-# Last updated: 2026-04-19
+# Asclepius Orchestrator Development Plan
 
-## 🔴 HIGH PRIORITY — Context Pipeline Refactor (Bring Back)
-The current "Ping Mode" in CommandCenter.tsx is a BANDAID. 
-The full context pipeline needs a proper tiered intent classification system:
-  - Every chat message currently triggers a full LLM call (even "hi")
-  - Ollama context window (8192 tokens) can overflow with long conversations
-  - The system has no message intent detection (greeting vs. task vs. query)
-  - No caching of system state between rapid messages
-  
-  Proposed future architecture:
-  1. Intent Classifier (local, no LLM): categorize message as ping/greeting, 
-     status query, task command, or complex analysis
-  2. Tiered Context Loading: ping=minimal, status=agents only, task=full context
-  3. Streaming responses for Ollama (stream: true) to improve perceived speed
-  4. Context caching: don't rebuild agent/project context if nothing changed
-  5. History windowing: sliding window with summarization for long conversations
+## Current Focus
 
-## 🟡 MEDIUM — Quota Management Hardening  
-  - checkQuota() currently returns true always (posts warning but doesn't block)
-  - Consider: if quota hit + provider is gemini, mutate to ollama immediately
-  - Per-agent quota tracking needs UI visibility in Agent Config
+### Initial Feature Implementation: Enhanced Agent Status Dashboard
 
-## 🟢 LOW — Cleanup
-  - Consider moving system prompt templates to separate .ts file for maintainability
+**Rationale:**
+Providing a clear, real-time overview of agent health and activity is crucial for monitoring, debugging, and understanding the overall system state. This dashboard will significantly improve the operator's ability to manage and troubleshoot Asclepius agents, directly impacting system reliability and efficiency.
+
+**High-Level Architectural Insights:**
+
+1.  **Data Source & Backend API:**
+    *   **Leverage PM2:** Given Asclepius uses `pm2` for daemon management (`ecosystem.config.cjs`, `daemon:start`), the primary source of agent status will be `pm2`'s internal API or CLI.
+    *   **New API Endpoint:** A new endpoint (e.g., `/api/agents/status`) will be added to the existing `express` API (`scripts/start-api.ts`). This endpoint will query `pm2` for process list and status, potentially enriching it with application-specific state if agents report back to the orchestrator.
+    *   **Real-time Updates (Future Consideration):** For truly dynamic monitoring, a WebSocket connection could be explored to push status updates to the frontend, reducing polling overhead. Initial implementation will likely use polling.
+2.  **Frontend Integration:**
+    *   **New React Component:** A dedicated React component (e.g., `src/components/AgentStatusDashboard.tsx`) will be created to display the agent statuses.
+    *   **Dashboard View:** This component will be integrated into the main application UI, likely as a new route or a prominent section within `App.tsx`.
+    *   **Styling:** Adhere to existing TailwindCSS conventions for a consistent look and feel.
+3.  **Scalability & Performance:**
+    *   The `pm2` API is generally efficient for local process management.
+    *   Implement client-side caching and intelligent polling intervals to manage network requests.
+    *   Consider pagination/filtering in the UI if the number of agents grows very large.
+4.  **Security:**
+    *   For a local orchestrator, direct exposure of `pm2` data via an API should be carefully considered. Ensure the endpoint is only accessible to authorized orchestrator components or local users.
+    *   If Asclepius is ever exposed externally, robust authentication and authorization will be paramount.
+
+**Key Components & Files Affected/Created:**
+
+*   `scripts/start-api.ts`: Add new Express route for `/api/agents/status`.
+*   `src/components/AgentStatusDashboard.tsx`: New React component for the dashboard UI.
+*   `src/types/agent.ts` (new file): Define TypeScript interfaces for AgentStatus data.
+*   `src/App.tsx` or `src/main.tsx`: Integrate the new dashboard component.
+*   `src/services/agentService.ts` (new file): Frontend service for fetching agent data.
+*   `plan.txt`: Update with progress and next steps.
+
+**Initial Implementation Tasks:**
+
+1.  **Backend: Implement `/api/agents/status` endpoint:**
+    *   Modify `scripts/start-api.ts` to add a new GET endpoint.
+    *   Use `pm2`'s programmatic API (e.g., `pm2.list()`) to retrieve agent statuses.
+    *   Return a structured JSON response containing agent name, ID, status, CPU, memory, etc.
+2.  **Frontend: Create `AgentStatusDashboard` component:**
+    *   Develop `src/components/AgentStatusDashboard.tsx` to fetch data from the new API.
+    *   Display a basic table or list of agents with their key statuses.
+    *   Implement basic error handling and loading states.
+3.  **Frontend: Integrate into `App.tsx`:**
+    *   Add the `AgentStatusDashboard` component to the main application layout.
+    *   Ensure it's accessible and visible.
+4.  **Define Agent Types:**
+    *   Create `src/types/agent.ts` with interfaces for the data returned by the API.
+
+---

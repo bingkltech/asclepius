@@ -1,0 +1,472 @@
+{
+  "nodes": [
+    {
+      "id": "eslint_config_js",
+      "label": "eslint.config.js",
+      "file_type": "code",
+      "source_file": "eslint.config.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "vite_config_ts",
+      "label": "vite.config.ts",
+      "file_type": "code",
+      "source_file": "vite.config.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "src_app_tsx",
+      "label": "App.tsx",
+      "file_type": "code",
+      "source_file": "src\\App.tsx",
+      "source_location": "L1"
+    },
+    {
+      "id": "app_button",
+      "label": "Button()",
+      "file_type": "code",
+      "source_file": "src\\App.tsx",
+      "source_location": "L32"
+    },
+    {
+      "id": "app_toggleworkerconnection",
+      "label": "toggleWorkerConnection()",
+      "file_type": "code",
+      "source_file": "src\\App.tsx",
+      "source_location": "L112"
+    },
+    {
+      "id": "app_handleaddworker",
+      "label": "handleAddWorker()",
+      "file_type": "code",
+      "source_file": "src\\App.tsx",
+      "source_location": "L128"
+    },
+    {
+      "id": "app_handleupdateworker",
+      "label": "handleUpdateWorker()",
+      "file_type": "code",
+      "source_file": "src\\App.tsx",
+      "source_location": "L149"
+    },
+    {
+      "id": "app_handledirectivechange",
+      "label": "handleDirectiveChange()",
+      "file_type": "code",
+      "source_file": "src\\App.tsx",
+      "source_location": "L153"
+    },
+    {
+      "id": "app_handlegenerateplan",
+      "label": "handleGeneratePlan()",
+      "file_type": "code",
+      "source_file": "src\\App.tsx",
+      "source_location": "L157"
+    },
+    {
+      "id": "src_main_tsx",
+      "label": "main.tsx",
+      "file_type": "code",
+      "source_file": "src\\main.tsx",
+      "source_location": "L1"
+    },
+    {
+      "id": "src_agents_godagent_ts",
+      "label": "GodAgent.ts",
+      "file_type": "code",
+      "source_file": "src\\agents\\GodAgent.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "godagent_godagent",
+      "label": "GodAgent",
+      "file_type": "code",
+      "source_file": "src\\agents\\GodAgent.ts",
+      "source_location": "L7"
+    },
+    {
+      "id": "godagent_godagent_decomposegoal",
+      "label": ".decomposeGoal()",
+      "file_type": "code",
+      "source_file": "src\\agents\\GodAgent.ts",
+      "source_location": "L12"
+    },
+    {
+      "id": "godagent_godagent_dispatchtask",
+      "label": ".dispatchTask()",
+      "file_type": "code",
+      "source_file": "src\\agents\\GodAgent.ts",
+      "source_location": "L32"
+    },
+    {
+      "id": "godagent_godagent_synclocalsandbox",
+      "label": ".syncLocalSandbox()",
+      "file_type": "code",
+      "source_file": "src\\agents\\GodAgent.ts",
+      "source_location": "L89"
+    },
+    {
+      "id": "src_hooks_usepersistentstate_ts",
+      "label": "usePersistentState.ts",
+      "file_type": "code",
+      "source_file": "src\\hooks\\usePersistentState.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "usepersistentstate_usepersistentstate",
+      "label": "usePersistentState()",
+      "file_type": "code",
+      "source_file": "src\\hooks\\usePersistentState.ts",
+      "source_location": "L3"
+    },
+    {
+      "id": "src_lib_utils_ts",
+      "label": "utils.ts",
+      "file_type": "code",
+      "source_file": "src\\lib\\utils.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "utils_cn",
+      "label": "cn()",
+      "file_type": "code",
+      "source_file": "src\\lib\\utils.ts",
+      "source_location": "L4"
+    },
+    {
+      "id": "src_types_pipeline_ts",
+      "label": "pipeline.ts",
+      "file_type": "code",
+      "source_file": "src\\types\\pipeline.ts",
+      "source_location": "L1"
+    }
+  ],
+  "edges": [
+    {
+      "source": "eslint_config_js",
+      "target": "js",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "eslint.config.js",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "eslint_config_js",
+      "target": "globals",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "eslint.config.js",
+      "source_location": "L2",
+      "weight": 1.0
+    },
+    {
+      "source": "eslint_config_js",
+      "target": "eslint_plugin_react_hooks",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "eslint.config.js",
+      "source_location": "L3",
+      "weight": 1.0
+    },
+    {
+      "source": "eslint_config_js",
+      "target": "eslint_plugin_react_refresh",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "eslint.config.js",
+      "source_location": "L4",
+      "weight": 1.0
+    },
+    {
+      "source": "eslint_config_js",
+      "target": "typescript_eslint",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "eslint.config.js",
+      "source_location": "L5",
+      "weight": 1.0
+    },
+    {
+      "source": "eslint_config_js",
+      "target": "config",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "eslint.config.js",
+      "source_location": "L6",
+      "weight": 1.0
+    },
+    {
+      "source": "vite_config_ts",
+      "target": "vite",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "vite.config.ts",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "vite_config_ts",
+      "target": "plugin_react",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "vite.config.ts",
+      "source_location": "L2",
+      "weight": 1.0
+    },
+    {
+      "source": "vite_config_ts",
+      "target": "vite",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "vite.config.ts",
+      "source_location": "L3",
+      "weight": 1.0
+    },
+    {
+      "source": "src_app_tsx",
+      "target": "react",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\App.tsx",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "src_app_tsx",
+      "target": "src_hooks_usepersistentstate",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\App.tsx",
+      "source_location": "L2",
+      "weight": 1.0
+    },
+    {
+      "source": "src_app_tsx",
+      "target": "lucide_react",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\App.tsx",
+      "source_location": "L3",
+      "weight": 1.0
+    },
+    {
+      "source": "src_app_tsx",
+      "target": "src_lib_utils",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\App.tsx",
+      "source_location": "L29",
+      "weight": 1.0
+    },
+    {
+      "source": "src_app_tsx",
+      "target": "app_button",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\App.tsx",
+      "source_location": "L32",
+      "weight": 1.0
+    },
+    {
+      "source": "src_app_tsx",
+      "target": "src_agents_godagent",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\App.tsx",
+      "source_location": "L51",
+      "weight": 1.0
+    },
+    {
+      "source": "src_app_tsx",
+      "target": "src_types_pipeline",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\App.tsx",
+      "source_location": "L52",
+      "weight": 1.0
+    },
+    {
+      "source": "src_app_tsx",
+      "target": "src_config_fleet_json",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\App.tsx",
+      "source_location": "L74",
+      "weight": 1.0
+    },
+    {
+      "source": "src_app_tsx",
+      "target": "app_toggleworkerconnection",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\App.tsx",
+      "source_location": "L112",
+      "weight": 1.0
+    },
+    {
+      "source": "src_app_tsx",
+      "target": "app_handleaddworker",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\App.tsx",
+      "source_location": "L128",
+      "weight": 1.0
+    },
+    {
+      "source": "src_app_tsx",
+      "target": "app_handleupdateworker",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\App.tsx",
+      "source_location": "L149",
+      "weight": 1.0
+    },
+    {
+      "source": "src_app_tsx",
+      "target": "app_handledirectivechange",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\App.tsx",
+      "source_location": "L153",
+      "weight": 1.0
+    },
+    {
+      "source": "src_app_tsx",
+      "target": "app_handlegenerateplan",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\App.tsx",
+      "source_location": "L157",
+      "weight": 1.0
+    },
+    {
+      "source": "src_main_tsx",
+      "target": "react",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\main.tsx",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "src_main_tsx",
+      "target": "client",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\main.tsx",
+      "source_location": "L2",
+      "weight": 1.0
+    },
+    {
+      "source": "src_main_tsx",
+      "target": "src_index_css",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\main.tsx",
+      "source_location": "L3",
+      "weight": 1.0
+    },
+    {
+      "source": "src_main_tsx",
+      "target": "src_app_tsx",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\main.tsx",
+      "source_location": "L4",
+      "weight": 1.0
+    },
+    {
+      "source": "src_agents_godagent_ts",
+      "target": "src_types_pipeline",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\agents\\GodAgent.ts",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "src_agents_godagent_ts",
+      "target": "godagent_godagent",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\agents\\GodAgent.ts",
+      "source_location": "L7",
+      "weight": 1.0
+    },
+    {
+      "source": "godagent_godagent",
+      "target": "godagent_godagent_decomposegoal",
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\agents\\GodAgent.ts",
+      "source_location": "L12",
+      "weight": 1.0
+    },
+    {
+      "source": "godagent_godagent",
+      "target": "godagent_godagent_dispatchtask",
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\agents\\GodAgent.ts",
+      "source_location": "L32",
+      "weight": 1.0
+    },
+    {
+      "source": "godagent_godagent",
+      "target": "godagent_godagent_synclocalsandbox",
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\agents\\GodAgent.ts",
+      "source_location": "L89",
+      "weight": 1.0
+    },
+    {
+      "source": "src_hooks_usepersistentstate_ts",
+      "target": "react",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\hooks\\usePersistentState.ts",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "src_hooks_usepersistentstate_ts",
+      "target": "usepersistentstate_usepersistentstate",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\hooks\\usePersistentState.ts",
+      "source_location": "L3",
+      "weight": 1.0
+    },
+    {
+      "source": "src_lib_utils_ts",
+      "target": "clsx",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\lib\\utils.ts",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "src_lib_utils_ts",
+      "target": "tailwind_merge",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\lib\\utils.ts",
+      "source_location": "L2",
+      "weight": 1.0
+    },
+    {
+      "source": "src_lib_utils_ts",
+      "target": "utils_cn",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\lib\\utils.ts",
+      "source_location": "L4",
+      "weight": 1.0
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

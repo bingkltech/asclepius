@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Hermes Widget</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      /* Drag handle for the borderless window */
+      -webkit-app-region: drag;
+    }
+
+    .pill {
+      display: flex;
+      align-items: center;
+      width: 230px;
+      height: 40px;
+      margin: 10px;
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 20px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      color: white;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+      cursor: pointer;
+    }
+
+    .icon-container {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #3b82f6; /* Default Blue */
+      border-radius: 20px;
+      box-shadow: inset 0 0 5px rgba(255,255,255,0.5);
+      transition: background 0.3s ease;
+    }
+
+    .icon-text {
+      font-weight: bold;
+      font-size: 18px;
+    }
+
+    .text-container {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      margin-left: 10px;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .state {
+      font-weight: 600;
+      font-size: 13px;
+      line-height: 1.2;
+    }
+
+    .details {
+      font-size: 10px;
+      opacity: 0.8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* States */
+    .state-offline .icon-container { background: #6b7280; }
+    .state-sleeping .icon-container { background: #8b5cf6; }
+    .state-analyzing .icon-container { background: #eab308; }
+    .state-planning .icon-container { background: #f97316; }
+    .state-working .icon-container { background: #10b981; }
+    .state-error .icon-container { background: #ef4444; }
+
+    /* Glow animation for active states */
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(255,255,255,0.4); }
+      70% { box-shadow: 0 0 0 6px rgba(255,255,255,0); }
+      100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+    }
+    .pulse .icon-container {
+      animation: pulse 2s infinite;
+    }
+
+  </style>
+</head>
+<body>
+  <div id="pill" class="pill state-offline">
+    <div class="icon-container">
+      <span class="icon-text">H</span>
+    </div>
+    <div class="text-container">
+      <div id="state-text" class="state">Offline</div>
+      <div id="details-text" class="details">Connecting...</div>
+    </div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    const pill = document.getElementById('pill');
+    const stateText = document.getElementById('state-text');
+    const detailsText = document.getElementById('details-text');
+
+    async function updateStatus() {
+      const status = await ipcRenderer.invoke('get-status');
+      
+      stateText.innerText = status.state;
+      detailsText.innerText = status.details;
+
+      // Update color class
+      pill.className = 'pill'; // reset
+      const stateClass = 'state-' + status.state.toLowerCase();
+      pill.classList.add(stateClass);
+
+      // Add pulse if active
+      if (['Analyzing', 'Planning', 'Working'].includes(status.state)) {
+        pill.classList.add('pulse');
+      }
+    }
+
+    // Poll every 1 second
+    setInterval(updateStatus, 1000);
+    updateStatus();
+
+    // Click handler to open dashboard
+    pill.addEventListener('click', () => {
+      ipcRenderer.send('open-dashboard');
+    });
+  </script>
+</body>
+</html>

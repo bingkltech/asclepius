@@ -31,6 +31,7 @@ export type ModelProvider =
   | 'anthropic'         // Claude API
   | 'openai'            // GPT-4, o1, etc.
   | 'local_ollama'      // Local Ollama instance
+  | 'cloud_ollama'      // Cloud Ollama VPS node
   | 'local_lmstudio'    // Local LM Studio
   | 'custom';           // User-defined endpoint
 
@@ -42,6 +43,9 @@ export interface ModelConfig {
   temperature?: number;          // 0.0 - 2.0
   maxTokens?: number;            // Response length cap
   systemPrompt?: string;         // Agent personality / role injection
+  
+  // ── API Vault Routing ──
+  fallbackChain?: ModelProvider[]; // E.g., ['google_jules', 'local_ollama']
 }
 
 // ─── Agent Configuration ────────────────────────────────────────────
@@ -49,6 +53,7 @@ export interface ModelConfig {
 // Each agent is a configurable unit with skills, a backing model,
 // and operational parameters.
 
+export type AgentCategory = 'brain' | 'seat'; // 'brain' (planning/fallback allowed) | 'seat' (execution/no fallback)
 export type AgentType = 'local' | 'cloud' | 'hybrid';
 export type AgentStatus = 'idle' | 'working' | 'reviewing' | 'offline' | 'error';
 
@@ -56,6 +61,7 @@ export interface AgentConfig {
   id: string;
   name: string;                  // Display name (e.g. "Athena")
   role: string;                  // Human-readable role (e.g. "Architect")
+  category: AgentCategory;       // Brains plan, Seats execute
   type: AgentType;
   status: AgentStatus;
   avatarColor: string;           // Tailwind class for UI display
@@ -71,6 +77,8 @@ export interface AgentConfig {
   maxConcurrentTasks?: number;   // How many tasks can run in parallel (default: 1)
   canWriteFiles?: boolean;       // Permission to use /api/write-file (safety gate)
   canExecuteCommands?: boolean;  // Permission to use /api/run-command (safety gate)
+  requiresQA?: boolean;          // If true, task must pass QA gate before completion
+  allowFallback?: boolean;       // MUST be false for 'seat', can be true for 'brain'
 
   // ── Knowledge Assets (Skill Seekers) ──
   knowledgeAssets?: string[];    // Paths to .skill.md files (pre-built knowledge)
@@ -94,6 +102,7 @@ export type TaskStatus =
   | 'pending'           // Ready to be assigned
   | 'assigned'          // Assigned to an agent, not yet started
   | 'working'           // Agent is actively executing
+  | 'waiting_on_pr'     // Task executed in Cloud, awaiting PR local fetch
   | 'in_review'         // Work done, awaiting QA/review
   | 'revision'          // QA found issues, sent back to agent
   | 'completed'         // Fully done and validated
@@ -128,11 +137,17 @@ export interface PipelineTask {
   startedAt?: number;
   completedAt?: number;
   estimatedMinutes?: number;     // Lead Agent's time estimate
+  output?: string;               // The final LLM response/report (used for DAG memory handoff)
   
   // ── Review Loop ──
   reviewNotes?: string;          // QA feedback if status is 'revision'
   reviewerId?: string;           // Agent who reviewed this task
   revisionCount?: number;        // How many times this was sent back
+  
+  // ── QA & Validation Strictness ──
+  qaEvidenceRequired?: boolean;  // Does this task require visual/test evidence?
+  qaEvidenceUrl?: string;        // Path to proof (screenshot, test log)
+  maxRetries?: number;           // Stop looping and fail after this many retries (default: 3)
 }
 
 // ─── Execution Plan ─────────────────────────────────────────────────

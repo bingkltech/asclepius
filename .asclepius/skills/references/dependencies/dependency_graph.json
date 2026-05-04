@@ -1,0 +1,81 @@
+{
+  "nodes": [
+    {
+      "file": "eslint.config.js",
+      "language": "JavaScript"
+    },
+    {
+      "file": "src\\agents\\ArchitectAgent.ts",
+      "language": "TypeScript"
+    },
+    {
+      "file": "src\\agents\\BackendAgent.ts",
+      "language": "TypeScript"
+    },
+    {
+      "file": "src\\agents\\BaseAgent.ts",
+      "language": "TypeScript"
+    },
+    {
+      "file": "src\\agents\\FrontendAgent.ts",
+      "language": "TypeScript"
+    },
+    {
+      "file": "src\\agents\\GodAgent.ts",
+      "language": "TypeScript"
+    },
+    {
+      "file": "src\\agents\\index.ts",
+      "language": "TypeScript"
+    },
+    {
+      "file": "src\\agents\\LeadAgent.ts",
+      "language": "TypeScript"
+    },
+    {
+      "file": "src\\agents\\QAAgent.ts",
+      "language": "TypeScript"
+    },
+    {
+      "file": "src\\App.tsx",
+      "language": "TypeScript"
+    },
+    {
+      "file": "src\\hooks\\usePersistentState.ts",
+      "language": "TypeScript"
+    },
+    {
+      "file": "src\\lib\\utils.ts",
+      "language": "TypeScript"
+    },
+    {
+      "file": "src\\main.tsx",
+      "language": "TypeScript"
+    },
+    {
+      "file": "src\\tools\\index.ts",
+      "language": "TypeScript"
+    },
+    {
+      "file": "src\\tools\\JulesConnector.ts",
+      "language": "TypeScript"
+    },
+    {
+      "file": "src\\tools\\SkillSeekersBridge.ts",
+      "language": "TypeScript"
+    },
+    {
+      "file": "src\\tools\\TerminalBridge.ts",
+      "language": "TypeScript"
+    },
+    {
+      "file": "src\\types\\pipeline.ts",
+      "language": "TypeScript"
+    },
+    {
+      "file": "vite.config.ts",
+      "language": "TypeScript"
+    }
+  ],
+  "edges": []
+}

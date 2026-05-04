@@ -1,0 +1,30 @@
+[
+  {
+    "pattern_type": "Adapter",
+    "category": "Structural",
+    "confidence": 0.7,
+    "location": "F:\\012A_Github\\asclepius\\src\\tools\\SkillSeekersBridge.ts",
+    "class_name": "SkillSeekersBridge",
+    "method_name": null,
+    "line_number": 23,
+    "evidence": [
+      "Class name suggests Adapter: SkillSeekersBridge"
+    ],
+    "related_classes": [],
+    "file_path": "F:\\012A_Github\\asclepius\\src\\tools\\SkillSeekersBridge.ts"
+  },
+  {
+    "pattern_type": "Adapter",
+    "category": "Structural",
+    "confidence": 0.7,
+    "location": "F:\\012A_Github\\asclepius\\src\\tools\\TerminalBridge.ts",
+    "class_name": "TerminalBridge",
+    "method_name": null,
+    "line_number": 7,
+    "evidence": [
+      "Class name suggests Adapter: TerminalBridge"
+    ],
+    "related_classes": [],
+    "file_path": "F:\\012A_Github\\asclepius\\src\\tools\\TerminalBridge.ts"
+  }
+]

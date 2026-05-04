@@ -6,90 +6,260 @@
 
 import type { AgentConfig, ModelConfig, PipelineTask } from '../types/pipeline';
 import { TerminalBridge } from '../tools/TerminalBridge';
+import { OllamaManager } from '../tools/OllamaManager';
 
 // ─── Multi-Provider LLM Abstraction ─────────────────────────────────
 
-export async function callLLM(model: ModelConfig, messages: { role: string; content: string }[]): Promise<string> {
+export async function callLLM(model: ModelConfig, messages: { role: string; content: string }[], allowFallback: boolean = true): Promise<string> {
+  if (!allowFallback) {
+    return await _callLLMDirect(model, messages);
+  }
+
+  const chain = model.fallbackChain ? [model.provider, ...model.fallbackChain.filter(p => p !== model.provider)] : [model.provider, 'local_ollama' as any];
+  let lastError: Error | null = null;
+
+  for (const provider of chain) {
+    try {
+      // Reconstruct model config for the fallback
+      const fallbackModel: ModelConfig = { ...model, provider: provider as any };
+      
+      // Setup sensible defaults for Ollama if not explicitly provided
+      if (provider === 'local_ollama' && !model.endpoint?.includes('localhost')) {
+        fallbackModel.endpoint = 'http://localhost:11434/api/chat';
+        fallbackModel.modelId = 'llama3';
+      } else if (provider === 'cloud_ollama' && !model.endpoint?.includes('cloud')) {
+        fallbackModel.endpoint = 'http://cloud-ollama-node:11434/api/chat';
+        fallbackModel.modelId = 'hermes3';
+      }
+
+      if (provider !== model.provider) {
+         console.warn(`[callLLM] Primary failed. Cascading to "${provider}"...`);
+      }
+      
+      const result = await _callLLMDirect(fallbackModel, messages);
+      return result;
+    } catch (err: any) {
+      console.warn(`[callLLM] Provider "${provider}" failed: ${err.message}`);
+      lastError = err;
+    }
+  }
+
+  throw new Error(`All providers in fallback chain failed. Last error: ${lastError?.message}`);
+}
+
+// ─── Multi-Provider Tool Calling Abstraction ────────────────────────
+
+export async function callLLMWithTools(model: ModelConfig, messages: any[], tools: any[], allowFallback: boolean = true): Promise<any> {
+  if (!allowFallback) {
+    return await _callLLMWithToolsDirect(model, messages, tools);
+  }
+
+  const chain = model.fallbackChain ? [model.provider, ...model.fallbackChain.filter(p => p !== model.provider)] : [model.provider, 'local_ollama' as any];
+  let lastError: Error | null = null;
+
+  for (const provider of chain) {
+    try {
+      const fallbackModel: ModelConfig = { ...model, provider: provider as any };
+      
+      if (provider === 'local_ollama' && !model.endpoint?.includes('localhost')) {
+        fallbackModel.endpoint = 'http://localhost:11434/v1/chat/completions';
+        fallbackModel.modelId = 'hermes-pro';
+      } else if (provider === 'cloud_ollama' && !model.endpoint?.includes('cloud')) {
+        fallbackModel.endpoint = 'http://cloud-ollama-node:11434/v1/chat/completions';
+        fallbackModel.modelId = 'hermes3';
+      }
+
+      if (provider !== model.provider) {
+         console.warn(`[callLLMWithTools] Primary failed. Cascading to "${provider}"...`);
+      }
+      
+      return await _callLLMWithToolsDirect(fallbackModel, messages, tools);
+    } catch (err: any) {
+      console.warn(`[callLLMWithTools] Provider "${provider}" failed: ${err.message}`);
+      lastError = err;
+    }
+  }
+
+  throw new Error(`All tool providers in fallback chain failed. Last error: ${lastError?.message}`);
+}
+
+async function _callLLMWithToolsDirect(model: ModelConfig, messages: any[], tools: any[]): Promise<any> {
   const { provider, endpoint, apiKey, modelId, temperature, maxTokens, systemPrompt } = model;
 
   const allMessages = systemPrompt
     ? [{ role: 'system', content: systemPrompt }, ...messages]
     : messages;
 
+  let targetUrl: string;
+  let headers: Record<string, string> = {};
+  let payload: any;
+
+  // We primarily support OpenAI-compatible tool schemas
+  targetUrl = endpoint || 'http://localhost:11434/v1/chat/completions';
+  if (provider === 'openai' || provider === 'local_ollama' || provider === 'cloud_ollama' || provider === 'custom' || provider === 'google_jules') {
+    if (provider === 'openai') {
+      targetUrl = endpoint || 'https://api.openai.com/v1/chat/completions';
+    } else if (provider === 'local_ollama') {
+      targetUrl = endpoint ? endpoint.replace('/api/chat', '/v1/chat/completions') : 'http://localhost:11434/v1/chat/completions';
+    } else if (provider === 'cloud_ollama') {
+      targetUrl = endpoint || 'http://cloud-ollama-node:11434/v1/chat/completions';
+    }
+    
+    headers = { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
+    payload = { 
+      model: modelId, 
+      temperature: temperature ?? 0.3, 
+      max_tokens: maxTokens ?? 8192, 
+      messages: allMessages,
+      tools: tools
+    };
+    if (provider === 'local_ollama' || provider === 'cloud_ollama') {
+      const ctxSize = process.env.OLLAMA_MAX_CTX ? parseInt(process.env.OLLAMA_MAX_CTX) : 32768;
+      payload.options = { num_ctx: ctxSize };
+    }
+  } else {
+     throw new Error(`[callLLMWithTools] Provider ${provider} tool-calling logic not implemented.`);
+  }
+
+  console.log(`[_callLLMWithToolsDirect] ${provider} → ${targetUrl} with ${tools.length} tools`);
+  const isNode = typeof window === 'undefined';
+  const signal = AbortSignal.timeout(30 * 60 * 1000); // 30 min timeout
+  
+  const res = await OllamaManager.enqueue(async () => {
+    if (isNode) {
+      return fetch(targetUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify(payload),
+        signal
+      });
+    } else {
+      return fetch('/api/llm-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUrl, headers, payload }),
+        signal
+      });
+    }
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Proxy ${res.status}: ${errText}`);
+  }
+
+  const data = await res.json();
+  if (data.error) {
+    throw new Error(typeof data.error === 'string' ? data.error : data.error.message || JSON.stringify(data.error));
+  }
+
+  return data.choices?.[0]?.message ?? {};
+}
+
+/** Direct LLM call to a single provider — no retry logic */
+async function _callLLMDirect(model: ModelConfig, messages: { role: string; content: string }[]): Promise<string> {
+  const { provider, endpoint, apiKey, modelId, temperature, maxTokens, systemPrompt } = model;
+
+  const allMessages = systemPrompt
+    ? [{ role: 'system', content: systemPrompt }, ...messages]
+    : messages;
+
+  let targetUrl: string;
+  let headers: Record<string, string> = {};
+  let payload: any;
+
   switch (provider) {
     case 'google_gemini': {
-      const res = await fetch(`${endpoint}/v1beta/models/${modelId}:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: allMessages.map(m => ({
-            role: m.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: m.content }],
-          })),
-          generationConfig: { temperature: temperature ?? 0.3, maxOutputTokens: maxTokens ?? 8192 },
-        }),
-      });
-      const data = await res.json();
-      return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '[No response from Gemini]';
+      targetUrl = `${endpoint}/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
+      payload = {
+        contents: allMessages.map(m => ({
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: m.content }],
+        })),
+        generationConfig: { temperature: temperature ?? 0.3, maxOutputTokens: maxTokens ?? 8192 },
+      };
+      break;
     }
-
     case 'anthropic': {
+      targetUrl = endpoint || 'https://api.anthropic.com/v1/messages';
+      headers = { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' };
       const sysMsg = allMessages.find(m => m.role === 'system')?.content;
       const nonSys = allMessages.filter(m => m.role !== 'system');
-      const res = await fetch(endpoint || 'https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: modelId, max_tokens: maxTokens ?? 8192, temperature: temperature ?? 0.3,
-          system: sysMsg,
-          messages: nonSys.map(m => ({ role: m.role, content: m.content })),
-        }),
-      });
-      const data = await res.json();
-      return data.content?.[0]?.text ?? '[No response from Claude]';
+      payload = {
+        model: modelId, max_tokens: maxTokens ?? 8192, temperature: temperature ?? 0.3,
+        system: sysMsg,
+        messages: nonSys.map(m => ({ role: m.role, content: m.content })),
+      };
+      break;
     }
-
     case 'openai': {
-      const res = await fetch(endpoint || 'https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          model: modelId, temperature: temperature ?? 0.3, max_tokens: maxTokens ?? 8192, messages: allMessages,
-        }),
-      });
-      const data = await res.json();
-      return data.choices?.[0]?.message?.content ?? '[No response from OpenAI]';
+      targetUrl = endpoint || 'https://api.openai.com/v1/chat/completions';
+      headers = { Authorization: `Bearer ${apiKey}` };
+      payload = { model: modelId, temperature: temperature ?? 0.3, max_tokens: maxTokens ?? 8192, messages: allMessages };
+      break;
     }
+    case 'local_ollama':
+    case 'cloud_ollama': {
+      const isCloud = provider === 'cloud_ollama';
+      targetUrl = endpoint || (isCloud ? 'http://cloud-ollama-node:11434/api/chat' : 'http://localhost:11434/api/chat');
+      // Stretch context window: default 32k, or user-defined via env
+      const ctxSize = process.env.OLLAMA_MAX_CTX ? parseInt(process.env.OLLAMA_MAX_CTX) : 32768;
+      payload = { model: modelId, messages: allMessages, stream: false, options: { temperature: temperature ?? 0.3, num_ctx: ctxSize, num_predict: maxTokens ?? 8192 } };
+      break;
+    }
+    default: {
+      targetUrl = endpoint;
+      headers = { Authorization: `Bearer ${apiKey}` };
+      payload = { model: modelId, temperature: temperature ?? 0.3, max_tokens: maxTokens ?? 8192, messages: allMessages };
+      break;
+    }
+  }
 
-    case 'local_ollama': {
-      const res = await fetch(endpoint || 'http://localhost:11434/api/chat', {
+  console.log(`[callLLM] ${provider} → ${targetUrl}`);
+  const isNode = typeof window === 'undefined';
+  const signal = AbortSignal.timeout(30 * 60 * 1000); // 30 min timeout
+  
+  const res = await OllamaManager.enqueue(async () => {
+    if (isNode) {
+      return fetch(targetUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify(payload),
+        signal
+      });
+    } else {
+      return fetch('/api/llm-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: modelId, messages: allMessages, stream: false,
-          options: { temperature: temperature ?? 0.3 },
-        }),
+        body: JSON.stringify({ targetUrl, headers, payload }),
+        signal
       });
-      const data = await res.json();
-      return data.message?.content ?? '[No response from Ollama]';
     }
+  });
 
-    default: {
-      // Custom endpoint — assume OpenAI-compatible shape
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          model: modelId, temperature: temperature ?? 0.3, max_tokens: maxTokens ?? 8192, messages: allMessages,
-        }),
-      });
-      const data = await res.json();
-      return data.choices?.[0]?.message?.content ?? data.content?.[0]?.text ?? '[No response]';
-    }
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Proxy ${res.status}: ${errText}`);
+  }
+
+  const data = await res.json();
+
+  // Detect API-level errors (quota, auth, rate-limit)
+  if (data.error) {
+    throw new Error(typeof data.error === 'string' ? data.error : data.error.message || JSON.stringify(data.error));
+  }
+
+  switch (provider) {
+    case 'google_gemini':
+      return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '[No response from Gemini]';
+    case 'anthropic':
+      return data.content?.[0]?.text ?? '[No response from Claude]';
+    case 'openai':
+      return data.choices?.[0]?.message?.content ?? '[No response from OpenAI]';
+    case 'local_ollama':
+      return data.message?.content ?? '[No response from Ollama]';
+    default:
+      return data.choices?.[0]?.message?.content ?? data.content?.[0]?.text ?? data.message?.content ?? '[No response]';
   }
 }
 
@@ -192,13 +362,67 @@ export abstract class BaseAgent {
    */
   async execute(task: PipelineTask): Promise<string> {
     const context = await this.gatherContext();
-    const model: ModelConfig = {
-      ...this.config.model,
-      systemPrompt: this.systemPrompt,
-    };
-
+    const model: ModelConfig = { ...this.config.model, systemPrompt: this.systemPrompt };
     const prompt = this.buildPrompt(task, context);
-    return await callLLM(model, [{ role: 'user', content: prompt }]);
+    const response = await callLLM(model, [{ role: 'user', content: prompt }], true);
+
+    let filesWritten = 0;
+
+    // 1. Try parsing <file path="...">...</file> blocks (robust regex)
+    const fileRegex = /<file\s+(?:path|name)=["']?([^"'>]+)["']?>([\s\S]*?)<\/file>/gi;
+    let match;
+    while ((match = fileRegex.exec(response)) !== null) {
+      const relativePath = match[1];
+      let content = match[2].trim();
+      // Remove accidental markdown backticks inside the tag
+      content = content.replace(/^```[\w]*\n/, '').replace(/\n```$/, '');
+
+      const absolutePath = `${this.projectPath}/${relativePath}`;
+      try {
+        await TerminalBridge.writeFile(absolutePath, content);
+        console.log(`[BaseAgent] Wrote XML tag file to ${absolutePath}`);
+        filesWritten++;
+      } catch (err: any) {
+        console.error(`[BaseAgent] Failed to write ${absolutePath}:`, err.message);
+      }
+    }
+
+    // 2. If no XML tags were found, fallback to parsing markdown code blocks with filename headers
+    if (filesWritten === 0) {
+      // Matches `filepath.ext` followed by ```code```
+      const mdRegex = /(?:`|\*\*|_)?([a-zA-Z0-9_\-\/\\]+\.[a-zA-Z0-9]+)(?:`|\*\*|_)?\s*:\s*\n*```[a-zA-Z]*\n([\s\S]*?)```/g;
+      while ((match = mdRegex.exec(response)) !== null) {
+        const relativePath = match[1];
+        const content = match[2].trim();
+        const absolutePath = `${this.projectPath}/${relativePath}`;
+        try {
+          await TerminalBridge.writeFile(absolutePath, content);
+          console.log(`[BaseAgent] Wrote Markdown block file to ${absolutePath}`);
+          filesWritten++;
+        } catch (err: any) {
+          console.error(`[BaseAgent] Failed to write ${absolutePath}:`, err.message);
+        }
+      }
+    }
+
+    if (filesWritten === 0 && task.targetFiles && task.targetFiles.length === 1) {
+       // 3. Absolute fallback: If exactly one target file was specified and we found a single code block
+       const singleBlockMatch = response.match(/```[a-zA-Z]*\n([\s\S]*?)```/);
+       if (singleBlockMatch) {
+         const absolutePath = `${this.projectPath}/${task.targetFiles[0]}`;
+         try {
+           await TerminalBridge.writeFile(absolutePath, singleBlockMatch[1].trim());
+           console.log(`[BaseAgent] Wrote single fallback block to ${absolutePath}`);
+           filesWritten++;
+         } catch (err) {}
+       }
+    }
+
+    if (filesWritten > 0) {
+      return `[Auto-Write] Successfully generated and wrote ${filesWritten} file(s) to disk.\n\n` + response;
+    }
+
+    return response;
   }
 
   /** Build the execution prompt. Agents can override for custom formatting. */
@@ -214,7 +438,16 @@ ${context}
 
 TARGET BRANCH: ${task.targetBranch || this.branch}
 
-Complete this task. Provide the exact code changes needed.`;
+Complete this task. 
+CRITICAL: To actually save the code, you MUST format your output exactly like this:
+<file path="src/components/MyComponent.tsx">
+export const MyComponent = () => {
+  return <div>Hello</div>;
+};
+</file>
+
+You can create or update multiple files by providing multiple <file> blocks.
+DO NOT wrap the code inside the <file> tags with markdown backticks (\`\`\`). Just put the raw code directly inside the tags.`;
   }
 
   /** Helper to call this agent's LLM with an arbitrary prompt. */
@@ -223,6 +456,6 @@ Complete this task. Provide the exact code changes needed.`;
       ...this.config.model,
       systemPrompt: this.systemPrompt,
     };
-    return await callLLM(model, [{ role: 'user', content: prompt }]);
+    return await callLLM(model, [{ role: 'user', content: prompt }], true);
   }
 }

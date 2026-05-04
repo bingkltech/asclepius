@@ -177,6 +177,30 @@ const asclepiusBackendPlugin = () => {
           });
           return;
         }
+        // ── LLM Proxy: Forwards LLM calls server-side to avoid CORS ──
+        if (req.url === '/api/llm-proxy' && req.method === 'POST') {
+          let body = '';
+          req.on('data', (chunk: any) => { body += chunk.toString(); });
+          req.on('end', async () => {
+            try {
+              const { targetUrl, headers: reqHeaders, payload } = JSON.parse(body);
+              console.log(`[AsclepiusBackend] LLM Proxy → ${targetUrl}`);
+              const response = await fetch(targetUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...reqHeaders },
+                body: JSON.stringify(payload),
+              });
+              const data = await response.text();
+              res.setHeader('Content-Type', 'application/json');
+              res.end(data);
+            } catch (e: any) {
+              console.error(`[AsclepiusBackend] LLM Proxy Error:`, e.message);
+              res.statusCode = 502;
+              res.end(JSON.stringify({ error: `LLM Proxy failed: ${e.message}` }));
+            }
+          });
+          return;
+        }
         next();
       });
     }

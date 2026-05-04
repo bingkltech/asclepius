@@ -1,339 +1,56 @@
-# 📜 The Asclepius Constitution — Immutable Architectural Law
+# The Asclepius Constitution
 
-> **VERSION:** v1.1 · **RATIFIED:** 2026-04-18 · **AMENDED:** 2026-04-18  
-> **PURPOSE:** This document defines the non-negotiable architectural principles governing the Asclepius system. Every feature, every agent, every line of code must comply with these articles. When in doubt, consult this Constitution. If a proposed change violates an article, the change is rejected — not the article.
+This document defines the unalterable architectural laws of the Asclepius Command Center. Any code written for this project must strictly adhere to these rules.
 
----
+## Article I: The Hierarchy of Orchestration
 
-## Preamble
+The system operates on a strict top-down delegation structure to maintain modularity:
 
-Asclepius exists to solve one problem: **Autonomous software delivery at scale without destroying the machine it runs on.**
+1.  **The GOD AGENT:** Sits protected at the absolute top of the hierarchy. Its _only_ role is to Forge and configure new Agents (Intelligence Brains). It does not decompose tasks or execute code. It cannot be deleted.
+2.  **The COO / Lead Agent:** The operational director. It receives the high-level project goal and is strictly responsible for decomposing that goal into granular tasks.
+3.  **The Agents (Brains):** The specialized intelligence profiles (e.g., Senior Frontend Dev, QA). They receive tasks from the COO, and they autonomously _choose_ which Worker (Execution Seat) has the required tools to execute the task.
 
-It achieves this by embodying a single, radical insight: **The application is the mind; the cloud is the muscle.** Asclepius thinks, plans, delegates, and verifies. External cloud workers (`jules.google`, Gemini API, future LLM providers) perform the raw cognitive labor. The local machine never bears the burden of inference.
+## Article II: Strict Decoupling of Brains and Seats
 
----
+The greatest architectural sin is conflating Intelligence with Execution. Asclepius utilizes a strict **Resource-Oriented Workforce** model:
 
-## Article I — The Cognitive Management Plane
+1.  **Agents (The Brains):** Pure intelligence profiles. They define _how_ to think (System Instructions) and hold the intelligence context (**Skills** via Skill Seekers). They possess the **LLM API credentials and endpoints** (e.g., paid Gemini, Claude). *Exception:* Intelligence Brains (like the Lead Agent) ARE explicitly permitted to fall back to a local LLM (like Ollama) to decompose tasks if primary cloud APIs are unavailable.
+2.  **Workers (The Seats / Adapter Keepers):** Persistent, named execution accounts (e.g., James, Athena). **Workers have ZERO intelligence.** A worker is strictly a dumb adapter that holds a URL (endpoint) and a token for a specific Tool (like the Jules API). 
+    - **The Strict No-Fallback Rule:** Workers are strictly 1-to-1 with their tool. If Jules is assigned to write code, ONLY Jules writes code. A Worker is NEVER permitted to silently fall back to a local LLM (like Ollama) to execute a coding task. If the tool fails or disconnects, the task crashes and the worker is frozen.
+    - **The Cloud Catcher Pattern (Future Upgrade):** Because Cloud Workers (like Jules) operate asynchronously, the Orchestrator must NEVER mark a task as `[completed]` just because the Cloud API returned `200 OK`. The task enters `[waiting_on_pr]`. However, **Asclepius must NEVER use the GitHub CLI (`gh`) or connect directly to GitHub Cloud APIs to check for PRs.** Asclepius is strictly a local orchestrator. It must monitor the local `.git/refs/remotes` folder and command the local git system to fetch updates (`git fetch`) at a reasonable interval to force the sync down to the local hard drive.
+3.  **The Skill Distribution Pipeline:** Skills and intelligence are passed down hierarchically, never generated at the bottom:
+    - **God Agent** injects the global repository `SKILL` into the **COO / Lead Agent**.
+    - **COO / Lead Agent** decomposes tasks and injects the specific **SKILL PROMPTS** directly into the granular task payload.
+    - **The Cloud Engine (e.g., jules.google):** When the task payload routes through the Worker (James) and reaches the remote execution endpoint, it arrives fully loaded with the exact instructions and proper skills. The cloud tool knows exactly what to do without needing further human or AI intervention.
 
-**Asclepius embodies the "God-Agent" (The Strategic Mind), but offloads inference compute to the cloud.**
+> **The Violation Test:** If a Worker silently delegates its coding task to Ollama, or if the Orchestrator marks a Cloud API task as completed before pulling the remote PR to the local sandbox, you have critically violated Article II.
 
-While Asclepius performs high-level cognitive work — strategic planning, task decomposition, PR verification, and fleet management — the actual neural processing (inference) is offloaded to cloud APIs (`jules.google`, Google Gemini). The local application acts as a **Cognitive Control Plane**: it curates context, manages the Slow Loop, and executes file/Git operations locally.
+## Article III: UI Honesty
 
-This means:
-- **The app's primary job is Management Quality, not raw compute.** The most complex code in Asclepius should be context window management, prompt engineering, and state orchestration — not neural inference.
-- **The app's resource footprint must remain lightweight.** CPU and memory usage should be minimal during idle and moderate during active orchestration. If the app is consuming excessive resources, the architecture has drifted from this article.
-- **The God-Agent IS the app.** The God-Agent is not a chatbot persona — it is the cognitive embodiment of Asclepius itself, using cloud APIs as its external brain to reason about the system it governs.
+The application Dashboard must explicitly separate Agents from Workers visually and structurally. They must never be conflated in a single ambiguous list.
 
-> **Test:** "Can a mid-range laptop run Asclepius with 10 concurrent agents for 24 hours without crashing?" If the answer is no, Article I is violated.
+- The "Agent Fleet" forge is strictly for creating and configuring AI Brains.
+- The "Projects" tab is where Workers are deployed into Teams.
 
----
+## Article IV: Stateless Persistence
 
-## Article II — The Resource-Oriented Architecture (Brains vs. Seats)
+The local application relies entirely on browser `localStorage` (via custom `usePersistentState` hooks). The dashboard must remain highly responsive and completely independent of external databases until absolutely necessary.
 
-**An Agent is NOT a Worker. A Worker is NOT an Agent.**
+## Article V: The Asynchronous Workflow Laws
 
-The greatest architectural sin is conflating the intelligence with the executor. Asclepius strictly separates these concepts into the Resource-Oriented Workforce model:
+To seamlessly scale from a single-worker to a multi-worker fleet, Asclepius orchestrates via a hardened Event Loop governed by the following unalterable laws:
 
-### 1. Agents (The Brains)
-The AI profiles. They contain the LLM provider configuration (Gemini, Claude, Ollama), the System Prompts, and the cognitive capabilities (Skills). 
-*   **The God Agent** is the supreme orchestrator. It sits alone in the Agent Fleet initially, holding absolute authority.
-*   More Agents (e.g., "Senior Frontend Dev") can be added to the Agent Fleet, but they possess no execution tools of their own.
+1. **The DAG Dependency Manager:** The COO must strictly enforce task dependencies and perform Deadlock Detection before starting. Task B cannot be assigned until Task A's Pull Request is fully tested, merged, and committed to the main branch.
+2. **Stateless Routing & Concurrency:** Workers (Execution Seats) are merely adapter keepers. The COO can assign multiple parallel tasks, but must enforce a Dispatch Concurrency Cap to protect external API rate limits.
+3. **The Isolated Sandbox Coordinator:** The COO must never blind-merge. All remote-pushed PRs must be checked out locally into a "Clean State" Sandbox. Tests are split into Static (compile) and Dynamic (run). Failed tests execute a 3-Strike Revision Loop back to the Worker before being marked [BLOCKED].
+4. **The Stale Branch Rebase Protocol:** To prevent parallel multi-worker Git conflicts, the COO MUST rebase incoming PR branches against the absolute latest `main` branch before testing or merging.
+5. **The Mandatory Cache-Bust:** Immediately after successfully merging a task's PR, the COO _must_ trigger a codebase re-scan (via SkillSeekers/Graphify) to ensure the next task in the DAG is planned using the updated codebase reality.
 
-### 2. Workers (The Seats / Identities)
-Workers are persistent, named accounts (e.g., Athena, Artemis, James, Jasmine). They are not AIs. They are "seats" that can hold external credentials.
-*   **A worker is an Identity.** James might be a `jules.google.com` account. Jasmine might be a CapCut API account.
-*   Workers execute tasks by "wearing" an Agent Brain. 
+## Article VI: The Duty of Pushback
+Any AI operating within this repository is strictly forbidden from blindly agreeing with the User if the User's proposal introduces architectural flaws, breaks the decoupling of Brains and Seats, or degrades the token economy. The AI MUST proactively challenge the User, explicitly state why the idea is a mistake, and propose a mathematically or structurally superior alternative before writing any code.
 
-### 3. Tools (The Hands)
-The specific software endpoints and applications that Workers are authorized to use.
-*   Examples: `jules.google` API, CapCut, Figma, Local Terminal, Browser.
-
-### 4. Skills (The Knowledge)
-Skill Seekers (`skill-seekers` python CLI) pre-compiles framework documentation into `.skill.md` assets. These are injected into an Agent's context window to provide instant domain expertise without permanent token bloat.
-
-### 5. Graphify (The Map)
-The underlying system that parses your local codebase to build a semantic Knowledge Graph, allowing the God Agent to understand cross-file dependencies and architecture before deploying Workers.
-
-### Execution Flow
-1. **God Agent** receives the goal and decomposes it.
-2. It realizes it needs to edit a video. It selects the **Video Editor Agent** (Brain).
-3. It assigns that Brain to **Jasmine** (Worker) because Jasmine possesses the **CapCut** (Tool).
-
-> **Test:** "If you want to switch James from using Gemini to Claude, do you have to delete James?" If the answer is yes, Article II is violated. James is just a seat; the Brain is dynamically swappable.
-
----
-
-## Article III — The Slow Loop Execution Engine
-
-**Stability over raw speed. Always.**
-
-Agentic loops can quickly overwhelm APIs (429 Rate Limits), exhaust memory, and hallucinate due to context degradation. To prevent this, Asclepius enforces a **Slow Loop** — a deliberately paced execution rhythm.
-
-### The Three Pillars of the Slow Loop
-
-#### 1. State-Backed Queueing
-- The COO drops micro-tasks into a **persistent, disk-backed queue** (localStorage / IndexedDB / encrypted config).
-- If the app crashes, it resumes exactly where it left off. No task is ever lost.
-- Tasks are processed sequentially, never in parallel bursts that spike CPU.
-
-#### 2. Deliberate Pacing
-- The system intentionally **sleeps** between complex API calls and Git operations.
-- Minimum 5-second gap between sequential LLM calls to the same provider.
-- Minimum 3-second gap between sequential GitHub API calls.
-- These delays are not bugs — they are architectural safeguards.
-
-#### 3. Memory Flushing (Agent Lifecycle)
-- Worker agents are **instantiated** for a single task scope.
-- Upon task completion, the worker agent's context is **flushed** (garbage collected).
-- A fresh worker with a clean context window is instantiated for the next task.
-- This prevents context window pollution, memory leaks, and progressive hallucination.
-
-### The Timer Registry (Enforcement)
-
-| Timer | Interval | Purpose |
-|---|---|---|
-| Heartbeat | 3,000ms | Agent liveness detection |
-| Agent Simulation | 8,000ms | Metric fluctuation + activity |
-| Task Scheduler | 5,000ms | Check and execute queued tasks |
-| Recovery Watchdog | 15,000ms | Auto-restart dead agents |
-| Health Regen | 30,000ms | Passive HP regeneration |
-
-> **INVARIANT:** The heartbeat (3s) MUST be faster than the watchdog (15s). The watchdog must never run before the heartbeat has had multiple chances to detect failure.
-
-> **Test:** "Can the system run all agents for 8 hours without any 429 rate limit errors, without exceeding 2GB RAM, and without any agent producing hallucinated output?" If the answer is no, Article III is violated.
-
----
-
-## Article IV — The Autonomous Delivery Pipeline (God-Agent → Jules → Sandbox → Main)
-
-**Code flows in one direction: from granular task definition to verified production merge.**
-
-This is the closed-loop autonomous delivery pipeline. The God-Agent orchestrates the entire flow:
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        THE LEAN DELIVERY PIPELINE                       │
-│                                                                         │
-│  ① God-Agent receives Project Goal                                      │
-│                              │                                          │
-│                              ▼                                          │
-│  ② God-Agent granularizes Goal into Tasks                               │
-│                              │                                          │
-│                              ▼                                          │
-│  ③ God-Agent delegates tasks in parallel to Jules (Cloud Workers)       │
-│    ├──► Account 1 (Jules) ──► Task A                                    │
-│    ├──► Account 2 (Jules) ──► Task B                                    │
-│    └──► Account N (Jules) ──► Task C                                    │
-│                              │                                          │
-│                              ▼                                          │
-│  ④ Jules generates code (CLOUD COMPUTE) and pushes to branches          │
-│                              │                                          │
-│                              ▼                                          │
-│  ⑤ God-Agent pulls branches via Git / GitHub Desktop                    │
-│                              │                                          │
-│                              ▼                                          │
-│  ⑥ God-Agent runs Sandbox tests locally (build, lint, run)              │
-│                              │                                          │
-│                       ┌──────┴──────┐                                   │
-│                       │             │                                   │
-│                    PASS           FAIL                                  │
-│                       │             │                                   │
-│                       ▼             ▼                                   │
-│               ⑦ God-Agent       ⑧ God-Agent rejects branch,             │
-│                 merges to main    creates fix task for Jules            │
-│                       │             │                                   │
-│                       │             └──── loops back to ③               │
-│                       ▼                                                 │
-│               ⑨ Next task in queue                                      │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-### Pipeline Rules
-
-1. **Jules NEVER merges directly to main.** Only the God-Agent can approve a merge after Sandbox verification.
-2. **Failed Tests generate new tasks automatically.** The error output from the Sandbox is captured, parsed, and fed back to Jules as a new fix task — creating a self-healing loop.
-3. **Parallel Delegation.** The God-Agent must utilize multiple Jules accounts to execute granular tasks in parallel, drastically reducing project delivery time.
-
-> **Test:** "Can the system autonomously deliver a 10-task project to a GitHub repository over 2 hours, with zero manual intervention, and all code passing Sandbox tests?" If the answer is no, Article IV is violated.
-
----
-
-## Article V — The Verifier Sandbox
-
-**Trust, but verify. No code reaches production without automated validation.**
-
-The Sandbox is not optional. It is the system's immune system.
-
-### Verification Protocol
-
-1. **Isolation:** The Sandbox operates in an isolated directory (`/test-projects/sandbox` or project-scoped directory). It never pollutes the main working tree.
-2. **Automated Testing:** On every PR branch pull, the Sandbox executes: `npm install` → `npm run build` → `npm run lint` → `npm run test` (if available).
-3. **Error Classification:** All failures are parsed into structured `SandboxError` objects with severity (`critical` / `warning`), file path, line number, and column.
-4. **Agent Routing:** Errors are automatically routed to the best-fit agent using `findBestAgent()` skill matching (security bugs → security-skilled agents, logic bugs → analysis-skilled agents).
-5. **Cross-Verification:** The COO can optionally send the Sandbox results to `antigravity.google` (a separate AI verifier) for an independent second opinion before merging.
-
-### Sandbox ↔ Pipeline Integration
-
-| Sandbox Output | Pipeline Action |
-|---|---|
-| ✅ All tests pass, 0 errors | COO merges PR to main |
-| ⚠️ Warnings only | COO merges with warning logged |
-| ❌ Critical errors | COO rejects PR, creates fix tasks |
-| 💀 Build fails completely | COO rejects PR, escalates to God-Agent |
-
-> **Test:** "Can the Sandbox catch a broken import, a type error, and a missing dependency — and autonomously generate fix tasks for each?" If the answer is no, Article V is violated.
-
----
-
-## Article VI — Distributed Power, Local Management
-
-**The compute is outside. The intelligence is here. Every agent connects directly to the cloud through its own identity.**
-
-This is the foundational economic principle of Asclepius:
-
-| Responsibility | Where It Happens | Why |
-|---|---|---|
-| **Neural inference** (code generation, reasoning) | ☁️ Cloud (`jules.google`, Gemini API) | GPU-intensive, scales infinitely |
-| **jules.google instances** (cloud coding tasks) | ☁️ Cloud (per agent's own account) | Each agent creates its own instances |
-| **Context preparation** (prompt engineering) | 💻 Local (Asclepius) | Requires deep system knowledge |
-| **File system operations** (read/write/git) | 💻 Local (Asclepius) | Cloud cannot touch local disk |
-| **Auth orchestration** (token refresh, health) | 💻 Local (Jules-Bridge) | Keeps all agent sessions alive |
-| **Quality assurance** (Sandbox testing) | 💻 Local (Asclepius) | Tests must run against real project files |
-| **State management** (task queues, agent health) | 💻 Local (Asclepius) | Single source of truth for orchestration |
-
-### Every Agent Has Direct Cloud Access
-
-Unlike traditional architectures where a single gateway bottlenecks all cloud requests, in Asclepius **every agent connects to the cloud through its own Google Identity** (Article II). There is no single point of failure:
-
-```
-God-Agent     ──► (own OAuth) ──► jules.google instance  ──► Gemini API
-COO-Agent     ──► (own OAuth) ──► jules.google instance  ──► Ollama (local)
-Healer-01     ──► (own OAuth) ──► jules.google instance  ──► Gemini API
-Worker-05     ──► (own OAuth) ──► jules.google instance  ──► Gemini API
-```
-
-Jules-Bridge's role is **Auth Orchestrator** — it monitors all agent sessions, refreshes expiring tokens, and reports connection health. It does NOT bottleneck cloud requests.
-
-### What the App Does NOT Do
-- ❌ Run neural networks locally (unless Ollama fallback is active)
-- ❌ Store credentials in plaintext
-- ❌ Allow cloud workers to directly access the local file system
-- ❌ Route all cloud requests through a single gateway agent
-
-### What the App MUST Do
-- ✅ Curate perfect context windows for every cloud API call
-- ✅ Route each agent's credentials from the encrypted vault to the correct process
-- ✅ Execute file writes and Git operations on behalf of cloud workers
-- ✅ Verify all cloud-generated code in the Sandbox before merging
-- ✅ Maintain the persistent task queue across crashes and restarts
-- ✅ Keep all agent OAuth sessions alive via Jules-Bridge's token refresh service
-
-> **Test:** "If the internet goes down, does the app gracefully degrade to local Ollama models without losing state? Can 5 agents each maintain independent jules.google sessions simultaneously?" If the answer is no, Article VI is violated.
-
----
-
-## Article VII — The Lookback-Forward Doctrine
-
-**No agent acts without full context. No task is monolithic. Every action feeds the next cycle.**
-
-The Lookback-Forward Strategy is the operational doctrine embedded in every agent interaction:
-
-```
-LOOKBACK    → Read full context (logs + history + fleet + projects + sandbox)
-COMPREHEND  → Map the landscape, understand what needs to happen next
-GRANULIZE   → Decompose into atomic, single-agent, time-bounded tasks
-FORWARD     → Execute one task, log the result, feed it back into LOOKBACK
-```
-
-### Enforcement in Code
-- **Every LLM call** receives a system context string containing: fleet status, active projects, sandbox health, recent logs, and chat transcript.
-- **Every completed task** generates a log entry that becomes input for the next LOOKBACK cycle.
-- **No task description** may exceed 500 characters. If it does, it must be decomposed further.
-
-> **Test:** "Does every agent response demonstrate awareness of the current fleet state, active projects, and recent errors?" If the answer is no, Article VII is violated.
-
----
-
-## Article VIII: The Golden Path SOP (GitOps & Autonomous Production)
-
-**The core directive:** Agents must never merge untested code directly into production. The system relies on a secure, verifiable, and sovereign Git pipeline for continuous autonomous development.
-
-## Article VIII: The Lean Orchestrator (Single-Agent Doctrine)
-
-**There is no internal fleet. There is only the God-Agent orchestrating external Cloud Workers.**
-
-Asclepius has evolved from a simulated multi-agent chat room into a lean, single-agent backend orchestrator. Internal agent communication (Command Center chat) is eliminated as overhead. 
-
-### The God-Agent (Lead Architect & Verifier)
-The God-Agent is the single locus of control within Asclepius. It holds all credentials, controls all tools, and acts as the Lead Developer.
-*   **Role:** Project Planning, Task Granularization, Delegation, and Quality Assurance.
-*   **Capabilities:** 
-    *   Breaks down complex project goals into granular, independent tasks.
-    *   Controls multiple external identities (Gmail accounts / Jules access tokens).
-    *   Operates GitHub Desktop / Git CLI for version control.
-    *   Runs the local Sandbox testing environment.
-
-### The Cloud Workers (Jules)
-The "workers" are no longer internal Asclepius agents. They are stateless, specialized instances of Google's `jules.google.com` (Jules).
-*   **Role:** Raw Code Generation and Heavy Compute.
-*   **Capabilities:**
-    *   The God-Agent delegates tasks in parallel to multiple Jules instances via different authenticated accounts.
-    *   Jules acts as the pure "muscle", executing the coding tasks and submitting code.
-
-### Enforcement in Code
-- **Whitelisted Backend Commands:** The `/api/git/exec` endpoint strictly blocks destructive bash commands (`rm`, `del`, arbitrary scripts). It only allows specific `git` operations.
-- **Merge Restrictions:** The `mergeBranch` function in `src/services/gitOps.ts` explicitly blocks any agent without the `git_merge` skill from executing a merge.
-
-> **Test:** "Are all commits on GitHub attributed to the unique `[name].agent@gmail.com` identities rather than a generic bot? Are merges strictly controlled by the God-Agent?" If the answer is no, Article VIII is violated.
-
----
-
-## Article IX: The Zero-Human Corporate Hierarchy (Project vs. Self)
-
-**The system strictly segregates external Client Project code from internal Asclepius Self Code to eliminate the Ouroboros Problem.**
-
-Asclepius operates as a Zero-Human Corporate Office. There are two distinct, parallel tracks of development:
-
-### 1. Track 1: Client Projects (The Company Output)
-- **Scope:** External repositories/folders assigned as Active Projects.
-- **Workforce:** The COO-Agent and Employee Agents (Healer, Dev, etc.).
-- **Protocol:** Workers are strictly sandboxed to project folders. They execute tasks, write code locally or via Jules, and push branches. If a worker creates a catastrophic syntax error, it only breaks the client project, preserving the Asclepius Command Center UI.
-
-### 2. Track 2: Asclepius Core (The Self / Office Building)
-- **Scope:** The Asclepius source code itself.
-- **Workforce:** The God-Agent, AntiGravity (System Architect), and any specialized agent explicitly spawned/authorized by the God-Agent.
-- **Protocol:** General employees (COO, Healers) are restricted from modifying Asclepius Core by default. The God-Agent holds absolute authority to SPAWN_AGENT or authorize existing workers to repair/upgrade the self-code. All self-code modifications must be dispatched via `jules.google` isolated cloud sandboxes or applied safely by AntiGravity to prevent Ouroboros UI crashes.
-
-> **Test:** "Does the COO and Healer understand they are restricted to Project work and cannot modify the Asclepius Core?" If the answer is no, Article IX is violated.
-
----
-
-## Constitutional Amendments
-
-This document may only be amended by the Human Operator. No agent — including the God-Agent — may modify, override, or circumvent any article in this Constitution. The Constitution is the supreme law of the system.
-
-Proposed amendments must:
-1. Be discussed and rationalized (as this document was).
-2. Include a new compliance test.
-3. Not contradict existing articles (unless the existing article is explicitly repealed).
-
----
-
-## Document Hierarchy
-
-```
-📜 CONSTITUTION.md           ← Supreme Law (this file)
- ├── 📋 CONTEXT_MAP.md       ← Deep technical implementation details
- ├── 📖 README.md            ← Public-facing overview and quick start
- ├── 🎯 docs/STRATEGY.md     ← Lookback-Forward execution doctrine
- ├── 🏛️ src/GOD_AGENT.md     ← God-Agent identity and protocols
- ├── 🛡️ src/components/COO_AGENT.md       ← COO delegation protocol
- ├── 🩺 src/components/HEALER_AGENT.md    ← Healer repair pipeline
- ├── 🌉 src/components/JULES_BRIDGE.md    ← Auth Orchestrator & connection health
- ├── 🤖 src/components/AGENTS.md          ← Fleet architecture
- ├── 📡 src/components/COMMAND_CENTER.md  ← Terminal interface
- └── 🧠 src/services/SERVICES.md          ← LLM service layer
-```
-
-> **All subordinate documents must align with this Constitution.** If a subordinate document contradicts an article, the Constitution prevails.
+## Article VII: The Boundary Between Law and Heuristics (Resolving Collision)
+To resolve any future collision between the Constitution and Agent instructions:
+1. **The Constitution (The Red Lines):** This document represents the absolute, immutable, and non-negotiable bounds of the system. An agent can *never* override these laws, regardless of how optimal or "best-case scenario" an alternative may seem.
+2. **The Agents (The Dos and Don'ts):** Agents (specifically the God Agent) are empowered to define dynamic execution strategies, contextual "dos and don'ts", and coding heuristics based on the specific scenario at hand. 
+3. **The Enforcement Protocol:** The God Agent MUST physically load and evaluate the Constitution during its Blueprint generation to ensure its dynamic advice never breaches the Red Lines. Dynamic optimization is encouraged, but it must operate strictly within the walled garden of these Constitutional laws.

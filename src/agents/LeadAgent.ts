@@ -20,6 +20,8 @@ import type {
 export class LeadAgent extends BaseAgent {
   get systemPrompt(): string {
     return `You are ${this.config.name}, the Lead Agent and Project Manager of the Asclepius autonomous development system.
+    
+CRITICAL CONTEXT: You are currently working on your own source code (Asclepius), located at F:\\012A_Github\\asclepius. You are revising and rebuilding your own body.
 
 YOUR ROLE:
 - Decompose high-level directives into discrete, actionable development tasks
@@ -81,7 +83,7 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
 
     try {
       const model: ModelConfig = { ...this.config.model, systemPrompt: this.systemPrompt };
-      const raw = await callLLM(model, [{ role: 'user', content: prompt }]);
+      const raw = await callLLM(model, [{ role: 'user', content: prompt }], true);
 
       const jsonMatch = raw.match(/\[[\s\S]*\]/);
       if (!jsonMatch) throw new Error('LLM did not return valid JSON array');
@@ -178,7 +180,7 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
 
   // ─── Phase 3: DAG Tick ────────────────────────────────────────────
 
-  static tick(plan: ExecutionPlan, agents: AgentConfig[]): ExecutionPlan {
+  static tick(plan: ExecutionPlan, _agents: AgentConfig[]): ExecutionPlan {
     for (const task of plan.tasks) {
       if (task.status === 'blocked') {
         const allDepsMet = task.dependencies.every(depId => {
@@ -188,6 +190,19 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
         if (allDepsMet) {
           task.status = 'pending';
           task.logs.push(`[${new Date().toISOString()}] Dependencies resolved — now pending`);
+
+          // ── DAG Memory Bus Injection ──
+          const handoffReports = task.dependencies.map(depId => {
+            const dep = plan.tasks.find(t => t.id === depId);
+            if (!dep?.output) return '';
+            // Truncate to 3000 chars to protect Local Ollama Context Limit
+            const truncatedOutput = dep.output.length > 3000 ? dep.output.substring(0, 3000) + '\n...[OUTPUT TRUNCATED FOR CONTEXT SIZE]' : dep.output;
+            return `\n--- OUTPUT FROM TASK: ${dep.goal} ---\n${truncatedOutput}`;
+          }).filter(Boolean).join('\n');
+          
+          if (handoffReports) {
+            task.description = `${task.description || ''}\n\n=== DEPENDENCY HANDOFF REPORTS ===${handoffReports}`;
+          }
         }
       }
     }

@@ -1,0 +1,52 @@
+[
+  {
+    "file_path": "F:\\012A_Github\\asclepius\\src\\tools\\SkillSeekersBridge.ts",
+    "language": "TypeScript",
+    "patterns": [
+      {
+        "pattern_type": "Adapter",
+        "category": "Structural",
+        "confidence": 0.7,
+        "location": "F:\\012A_Github\\asclepius\\src\\tools\\SkillSeekersBridge.ts",
+        "class_name": "SkillSeekersBridge",
+        "method_name": null,
+        "line_number": 23,
+        "evidence": [
+          "Class name suggests Adapter: SkillSeekersBridge"
+        ],
+        "related_classes": []
+      }
+    ],
+    "total_classes": 1,
+    "total_functions": 0,
+    "analysis_depth": "surface",
+    "pattern_summary": {
+      "Adapter": 1
+    }
+  },
+  {
+    "file_path": "F:\\012A_Github\\asclepius\\src\\tools\\TerminalBridge.ts",
+    "language": "TypeScript",
+    "patterns": [
+      {
+        "pattern_type": "Adapter",
+        "category": "Structural",
+        "confidence": 0.7,
+        "location": "F:\\012A_Github\\asclepius\\src\\tools\\TerminalBridge.ts",
+        "class_name": "TerminalBridge",
+        "method_name": null,
+        "line_number": 7,
+        "evidence": [
+          "Class name suggests Adapter: TerminalBridge"
+        ],
+        "related_classes": []
+      }
+    ],
+    "total_classes": 1,
+    "total_functions": 0,
+    "analysis_depth": "surface",
+    "pattern_summary": {
+      "Adapter": 1
+    }
+  }
+]
