@@ -147,6 +147,9 @@ export default function App() {
   
   // Agent State
   const [workers, setWorkers] = usePersistentState<Worker[]>('asclepius_agents_v4', initialAgents);
+  // Performance optimization: O(1) worker lookup to prevent O(N*M) during DAG task rendering
+
+  const workersMap = useMemo(() => new Map(workers.map(w => [w.id, w])), [workers]);
   const [configuringWorkerId, setConfiguringWorkerId] = usePersistentState<string | null>('asclepius_configuring_agent_v4', 'a0');
   const [isAddingWorker, setIsAddingWorker] = usePersistentState('asclepius_is_adding_worker', false);
   const [workerDirectives, setWorkerDirectives] = usePersistentState<Record<string, string>>('asclepius_worker_directives', {});
@@ -209,7 +212,7 @@ export default function App() {
 
   const toggleWorkerConnection = (workerId: string) => {
     const isCurrentlyConnected = workerConnections[workerId];
-    const worker = workers.find(w => w.id === workerId);
+    const worker = workersMap.get(workerId);
     
     if (!isCurrentlyConnected) {
       setPipelineLogs(prev => [...prev, { timeString: new Date().toLocaleTimeString(), message: `Initiating handshake with ${worker?.name} at ${worker?.endpoint}...`, type: 'info' }]);
@@ -252,7 +255,7 @@ export default function App() {
 
   const handleGeneratePlan = (workerId: string) => {
     setIsPlanning(true);
-    const activeWorker = workers.find(w => w.id === workerId);
+    const activeWorker = workersMap.get(workerId);
     setPipelineLogs(prev => [...prev, { timeString: new Date().toLocaleTimeString(), message: `Dispatching payload to ${activeWorker?.name}...`, type: 'info' }]);
 
     setTimeout(() => {
@@ -355,7 +358,7 @@ export default function App() {
       setPipelineLogs(prev => [...prev, { timeString: new Date().toLocaleTimeString(), message: `[LeadAgent] Generated ${assigned.length} tasks from directive.`, type: 'success' }]);
 
       const summary = assigned.map((t, i) => {
-        const agent = workers.find(w => w.id === t.assignedAgentId);
+        const agent = workersMap.get(t.assignedAgentId);
         return `${i + 1}. ${t.goal} → ${agent?.name || 'Unassigned'} [${t.status}]`;
       }).join('\n');
 
@@ -387,7 +390,7 @@ export default function App() {
   const activeProjectMemo = useMemo(() => projects.find(p => p.id === activeProjectId), [projects, activeProjectId]);
   const activeProjectWorkerIds = useMemo(() => new Set(activeProjectMemo?.assignedWorkerIds || []), [activeProjectMemo]);
 
-  const activeWorkerConfig = workers.find(w => w.id === configuringWorkerId);
+  const activeWorkerConfig = configuringWorkerId ? workersMap.get(configuringWorkerId) : undefined;
   const activeDirective = activeWorkerConfig ? (workerDirectives[activeWorkerConfig.id] || '') : '';
   const isWorkerConnected = activeWorkerConfig ? !!workerConnections[activeWorkerConfig.id] : false;
 
@@ -599,7 +602,7 @@ export default function App() {
                 ) : (
                   <div className="p-3 space-y-2 overflow-y-auto custom-scrollbar flex-1">
                     {dagTasks.map((task, idx) => {
-                      const assignee = workers.find(w => w.id === task.assignedAgentId);
+                      const assignee = workersMap.get(task.assignedAgentId);
                       const statusConfig: Record<string, { icon: any; color: string; bg: string; border: string }> = {
                         blocked:   { icon: Lock,          color: 'text-zinc-600',   bg: 'bg-zinc-900',        border: 'border-zinc-800' },
                         pending:   { icon: CircleDashed,  color: 'text-amber-500',  bg: 'bg-[#09090b]',      border: 'border-zinc-800 hover:border-zinc-700' },
@@ -1179,7 +1182,7 @@ export default function App() {
                   ) : configuringWorkerId ? (
                     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-right-4">
                       {(() => {
-                         const worker = workers.find(w => w.id === configuringWorkerId);
+                         const worker = configuringWorkerId ? workersMap.get(configuringWorkerId) : undefined;
                          if (!worker) return null;
                          return (
                            <>
