@@ -147,6 +147,7 @@ export default function App() {
   
   // Agent State
   const [workers, setWorkers] = usePersistentState<Worker[]>('asclepius_agents_v4', initialAgents);
+  const workersById = useMemo(() => new Map(workers.map(w => [w.id, w])), [workers]);
   const [configuringWorkerId, setConfiguringWorkerId] = usePersistentState<string | null>('asclepius_configuring_agent_v4', 'a0');
   const [isAddingWorker, setIsAddingWorker] = usePersistentState('asclepius_is_adding_worker', false);
   const [workerDirectives, setWorkerDirectives] = usePersistentState<Record<string, string>>('asclepius_worker_directives', {});
@@ -355,7 +356,7 @@ export default function App() {
       setPipelineLogs(prev => [...prev, { timeString: new Date().toLocaleTimeString(), message: `[LeadAgent] Generated ${assigned.length} tasks from directive.`, type: 'success' }]);
 
       const summary = assigned.map((t, i) => {
-        const agent = workers.find(w => w.id === t.assignedAgentId);
+        const agent = workersById.get(t.assignedAgentId || '');
         return `${i + 1}. ${t.goal} → ${agent?.name || 'Unassigned'} [${t.status}]`;
       }).join('\n');
 
@@ -599,7 +600,7 @@ export default function App() {
                 ) : (
                   <div className="p-3 space-y-2 overflow-y-auto custom-scrollbar flex-1">
                     {dagTasks.map((task, idx) => {
-                      const assignee = workers.find(w => w.id === task.assignedAgentId);
+                      const assignee = workersById.get(task.assignedAgentId || '');
                       const statusConfig: Record<string, { icon: any; color: string; bg: string; border: string }> = {
                         blocked:   { icon: Lock,          color: 'text-zinc-600',   bg: 'bg-zinc-900',        border: 'border-zinc-800' },
                         pending:   { icon: CircleDashed,  color: 'text-amber-500',  bg: 'bg-[#09090b]',      border: 'border-zinc-800 hover:border-zinc-700' },
