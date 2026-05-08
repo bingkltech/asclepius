@@ -12,7 +12,7 @@ async function sleep(ms: number) {
 async function runIdleLoop() {
   console.log('🤖 [Idle Hermes] Waking up to scan codebase...');
 
-  const bestModel = await OllamaManager.selectBestModel();
+  const bestModel = await OllamaManager.selectBestModel(undefined, 'high');
   console.log(`🤖 [Idle Hermes] Selected optimal Ollama model: ${bestModel}`);
 
   const config: AgentConfig = {

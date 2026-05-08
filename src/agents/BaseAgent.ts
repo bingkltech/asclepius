@@ -7,6 +7,8 @@
 import type { AgentConfig, ModelConfig, PipelineTask } from '../types/pipeline';
 import { TerminalBridge } from '../tools/TerminalBridge';
 import { OllamaManager } from '../tools/OllamaManager';
+import { ResourceGovernor } from '../tools/ResourceGovernor';
+import { CommonSenseGate } from '../tools/CommonSenseGate';
 
 // ─── Multi-Provider LLM Abstraction ─────────────────────────────────
 
@@ -26,10 +28,7 @@ export async function callLLM(model: ModelConfig, messages: { role: string; cont
       // Setup sensible defaults for Ollama if not explicitly provided
       if (provider === 'local_ollama' && !model.endpoint?.includes('localhost')) {
         fallbackModel.endpoint = 'http://localhost:11434/api/chat';
-        fallbackModel.modelId = 'llama3';
-      } else if (provider === 'cloud_ollama' && !model.endpoint?.includes('cloud')) {
-        fallbackModel.endpoint = 'http://cloud-ollama-node:11434/api/chat';
-        fallbackModel.modelId = 'hermes3';
+        fallbackModel.modelId = await OllamaManager.selectBestModel('http://localhost:11434', fallbackModel.complexity);
       }
 
       if (provider !== model.provider) {
@@ -63,10 +62,7 @@ export async function callLLMWithTools(model: ModelConfig, messages: any[], tool
       
       if (provider === 'local_ollama' && !model.endpoint?.includes('localhost')) {
         fallbackModel.endpoint = 'http://localhost:11434/v1/chat/completions';
-        fallbackModel.modelId = 'hermes-pro';
-      } else if (provider === 'cloud_ollama' && !model.endpoint?.includes('cloud')) {
-        fallbackModel.endpoint = 'http://cloud-ollama-node:11434/v1/chat/completions';
-        fallbackModel.modelId = 'hermes3';
+        fallbackModel.modelId = await OllamaManager.selectBestModel('http://localhost:11434', fallbackModel.complexity);
       }
 
       if (provider !== model.provider) {
@@ -114,8 +110,11 @@ async function _callLLMWithToolsDirect(model: ModelConfig, messages: any[], tool
       tools: tools
     };
     if (provider === 'local_ollama' || provider === 'cloud_ollama') {
-      const ctxSize = process.env.OLLAMA_MAX_CTX ? parseInt(process.env.OLLAMA_MAX_CTX) : 32768;
+      // Adaptive context: shrinks under CPU/GPU pressure to prevent freezes
+      const governor = ResourceGovernor.getInstance();
+      const ctxSize = governor.getAdaptiveContextSize();
       payload.options = { num_ctx: ctxSize };
+      console.log(`[callLLMWithTools] Adaptive Ollama context: ${ctxSize} tokens`);
     }
   } else {
      throw new Error(`[callLLMWithTools] Provider ${provider} tool-calling logic not implemented.`);
@@ -123,7 +122,11 @@ async function _callLLMWithToolsDirect(model: ModelConfig, messages: any[], tool
 
   console.log(`[_callLLMWithToolsDirect] ${provider} → ${targetUrl} with ${tools.length} tools`);
   const isNode = typeof window === 'undefined';
-  const signal = AbortSignal.timeout(30 * 60 * 1000); // 30 min timeout
+  // Adaptive timeout: shrinks under system pressure to release GPU faster
+  const governorTools = ResourceGovernor.getInstance();
+  const toolsTimeoutMs = governorTools.getAdaptiveLLMTimeout();
+  const signal = AbortSignal.timeout(toolsTimeoutMs);
+  console.log(`[callLLMWithTools] Adaptive timeout: ${Math.round(toolsTimeoutMs / 1000)}s`);
   
   const res = await OllamaManager.enqueue(async () => {
     if (isNode) {
@@ -203,7 +206,10 @@ async function _callLLMDirect(model: ModelConfig, messages: { role: string; cont
       const isCloud = provider === 'cloud_ollama';
       targetUrl = endpoint || (isCloud ? 'http://cloud-ollama-node:11434/api/chat' : 'http://localhost:11434/api/chat');
       // Stretch context window: default 32k, or user-defined via env
-      const ctxSize = process.env.OLLAMA_MAX_CTX ? parseInt(process.env.OLLAMA_MAX_CTX) : 32768;
+      // Adaptive context: shrinks under CPU/GPU pressure to prevent freezes
+      const governor = ResourceGovernor.getInstance();
+      const ctxSize = governor.getAdaptiveContextSize();
+      console.log(`[callLLM] Adaptive Ollama context: ${ctxSize} tokens`);
       payload = { model: modelId, messages: allMessages, stream: false, options: { temperature: temperature ?? 0.3, num_ctx: ctxSize, num_predict: maxTokens ?? 8192 } };
       break;
     }
@@ -217,7 +223,11 @@ async function _callLLMDirect(model: ModelConfig, messages: { role: string; cont
 
   console.log(`[callLLM] ${provider} → ${targetUrl}`);
   const isNode = typeof window === 'undefined';
-  const signal = AbortSignal.timeout(30 * 60 * 1000); // 30 min timeout
+  // Adaptive timeout: shrinks under system pressure to release GPU faster
+  const governorDirect = ResourceGovernor.getInstance();
+  const timeoutMsDirect = governorDirect.getAdaptiveLLMTimeout();
+  const signal = AbortSignal.timeout(timeoutMsDirect);
+  console.log(`[callLLM] Adaptive timeout: ${Math.round(timeoutMsDirect / 1000)}s`);
   
   const res = await OllamaManager.enqueue(async () => {
     if (isNode) {
@@ -269,6 +279,11 @@ export abstract class BaseAgent {
   readonly config: AgentConfig;
   protected projectPath: string;
   protected branch: string;
+
+  // ── Shared CommonSenseGate singleton ───────────────────────────────
+  // One gate instance for all agents — shared staleness log and wired memory.
+  // Agents never instantiate their own gate (that would defeat deduplication).
+  protected static gate: CommonSenseGate = new CommonSenseGate();
 
   constructor(config: AgentConfig, projectPath: string, branch: string = 'main') {
     this.config = config;
@@ -361,10 +376,45 @@ export abstract class BaseAgent {
    * Returns the LLM's response text.
    */
   async execute(task: PipelineTask): Promise<string> {
+    // ── CommonSenseGate Evaluation ─────────────────────────────────
+    // The gate is the FIRST thing evaluated — before context scan, before LLM call.
+    // REJECT/SKIP return immediately with no token spend.
+    const gateResult = await BaseAgent.gate.evaluate(task.goal, {
+      type: 'task',
+      projectPath: this.projectPath,
+      targetFiles: task.targetFiles,
+      agentSkills: this.config.skills,
+    });
+
+    if (gateResult.finalVerdict === 'REJECT') {
+      const reason = gateResult.results.find(r => r.verdict === 'REJECT')?.reason ?? 'Unknown reason';
+      const msg = `[CommonSenseGate] REJECTED: ${reason}`;
+      console.warn(`[${this.config.name}] ${msg}`);
+      return msg; // Surface the rejection as task output — not a thrown error
+    }
+
+    if (gateResult.finalVerdict === 'SKIP') {
+      const reason = gateResult.results.find(r => r.verdict === 'SKIP')?.reason ?? 'Already done';
+      const msg = `[CommonSenseGate] SKIPPED: ${reason}`;
+      console.log(`[${this.config.name}] ${msg}`);
+      return msg;
+    }
+
+    // ── Context + Prompt ───────────────────────────────────────────
     const context = await this.gatherContext();
     const model: ModelConfig = { ...this.config.model, systemPrompt: this.systemPrompt };
-    const prompt = this.buildPrompt(task, context);
-    const response = await callLLM(model, [{ role: 'user', content: prompt }], true);
+
+    // Inject CAUTION warning and enriched memory context into the prompt
+    const cautionPrefix = gateResult.finalVerdict === 'CAUTION'
+      ? `[CommonSenseGate] ⚠️ CAUTION: ${gateResult.results.filter(r => r.verdict === 'CAUTION').map(r => r.reason).join('; ')}\n\n`
+      : '';
+    const memoryContext = gateResult.enrichedContext
+      ? `\n\n${gateResult.enrichedContext}`
+      : '';
+
+    const prompt = this.buildPrompt(task, context + memoryContext);
+    const finalPrompt = cautionPrefix ? cautionPrefix + prompt : prompt;
+    const response = await callLLM(model, [{ role: 'user', content: finalPrompt }], true);
 
     let filesWritten = 0;
 
@@ -418,6 +468,12 @@ export abstract class BaseAgent {
        }
     }
 
+    // ── Record success in Gate + MemoryBridge ──────────────────────
+    // This prevents duplicate execution and builds the learning memory.
+    if (filesWritten > 0 || response.length > 50) {
+      await BaseAgent.gate.recordSuccess(this.config.id, task.goal, response);
+    }
+
     if (filesWritten > 0) {
       return `[Auto-Write] Successfully generated and wrote ${filesWritten} file(s) to disk.\n\n` + response;
     }
@@ -427,14 +483,29 @@ export abstract class BaseAgent {
 
   /** Build the execution prompt. Agents can override for custom formatting. */
   protected buildPrompt(task: PipelineTask, context: string): string {
+    // ── Token Budget Enforcement ─────────────────────────────────────────
+    // The model's maxTokens field applies to OUTPUT, not total context window.
+    // We budget the INPUT separately. Rule: total prompt ≤ CONTEXT_WINDOW_CHARS.
+    // Default: 24,000 chars ≈ 6,000 tokens — safe for most 8k+ context models.
+    // Ollama models (4k-8k ctx): the ResourceGovernor already throttles ctx size.
+    const contextWindowChars = (this.config.model.maxTokens ?? 8192) * 3; // 3 chars/token (conservative)
+
+    // The "static frame" — parts that never get truncated no matter what:
+    //   identity (≈80 chars) + task goal (≤500) + description (≤800) +
+    //   target files (≤200) + branch (≤50) + output format instructions (≈600)
+    const STATIC_FRAME_CHARS = 2500;
+    const contextBudget = contextWindowChars - STATIC_FRAME_CHARS;
+
+    const safeContext = this.enforceTokenBudget(context, contextBudget, 'PROJECT CONTEXT');
+
     return `You are ${this.config.name}, a ${this.config.role}.
 
 TASK: ${task.goal}
-${task.description ? `\nDETAILS: ${task.description}` : ''}
+${task.description ? `\nDETAILS: ${task.description.substring(0, 800)}` : ''}
 ${task.targetFiles?.length ? `\nFOCUS FILES: ${task.targetFiles.join(', ')}` : ''}
 
 PROJECT CONTEXT:
-${context}
+${safeContext}
 
 TARGET BRANCH: ${task.targetBranch || this.branch}
 
@@ -448,6 +519,51 @@ export const MyComponent = () => {
 
 You can create or update multiple files by providing multiple <file> blocks.
 DO NOT wrap the code inside the <file> tags with markdown backticks (\`\`\`). Just put the raw code directly inside the tags.`;
+  }
+
+  /**
+   * Enforce a character budget on any large string before it enters a prompt.
+   *
+   * Strategy:
+   *   - If content fits within budget: return as-is.
+   *   - If content overflows: keep the HEAD (most structurally important — file
+   *     tree, package.json), then append a TAIL snippet (most recent context),
+   *     then add a visible truncation banner.
+   *
+   * Why head+tail instead of just head?
+   *   For long dependency handoff reports, the most relevant work is at the END.
+   *   Head+tail gives the LLM both the directory structure AND the latest output.
+   *
+   * @param content   The raw string to potentially truncate.
+   * @param budget    Max character count allowed.
+   * @param label     Human-readable label for the truncation banner (e.g., 'PROJECT CONTEXT').
+   */
+  protected enforceTokenBudget(content: string, budget: number, label: string = 'CONTENT'): string {
+    if (content.length <= budget) return content;
+
+    // Reserve some budget for the truncation banner itself
+    const BANNER_CHARS = 200;
+    const usable = budget - BANNER_CHARS;
+
+    if (usable <= 0) {
+      return `[${label} TRUNCATED — budget too small (${budget} chars)]`;
+    }
+
+    // Split budget: 70% head (structural info), 30% tail (recent output)
+    const headChars = Math.floor(usable * 0.7);
+    const tailChars = usable - headChars;
+
+    const head = content.substring(0, headChars);
+    const tail = content.substring(content.length - tailChars);
+
+    const truncatedBytes = content.length - usable;
+    const truncatedTokensEst = Math.round(truncatedBytes / 4);
+
+    return `${head}
+
+... [⚠️ ${label} TRUNCATED: ${truncatedBytes.toLocaleString()} chars (~${truncatedTokensEst.toLocaleString()} tokens) omitted to stay within context budget. Work with what is available above and below.] ...
+
+${tail}`;
   }
 
   /** Helper to call this agent's LLM with an arbitrary prompt. */

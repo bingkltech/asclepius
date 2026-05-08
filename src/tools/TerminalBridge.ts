@@ -12,17 +12,18 @@ let _fs: typeof import('fs') | null = null;
 let _path: typeof import('path') | null = null;
 let _execSync: typeof import('child_process').execSync | null = null;
 
-if (isNode) {
-  // Dynamic imports resolved at module load in Node
-  _fs = await import('fs');
-  _path = await import('path');
-  const cp = await import('child_process');
+async function loadNodeModules() {
+  if (!isNode || _fs) return;
+  _fs = await import(/* @vite-ignore */ 'fs');
+  _path = await import(/* @vite-ignore */ 'path');
+  const cp = await import(/* @vite-ignore */ 'child_process');
   _execSync = cp.execSync;
 }
 
 export class TerminalBridge {
   // ─── List Directory ───────────────────────────────────────────────
   static async listDir(dirPath: string): Promise<{ name: string; isDirectory: boolean }[]> {
+    await loadNodeModules();
     if (isNode && _fs) {
       if (!_fs.existsSync(dirPath)) throw new Error(`[TerminalBridge] Directory not found: ${dirPath}`);
       const entries = _fs.readdirSync(dirPath, { withFileTypes: true });
@@ -41,6 +42,7 @@ export class TerminalBridge {
 
   // ─── Read File ────────────────────────────────────────────────────
   static async readFile(filePath: string): Promise<string> {
+    await loadNodeModules();
     if (isNode && _fs) {
       if (!_fs.existsSync(filePath)) throw new Error(`[TerminalBridge] File not found: ${filePath}`);
       return _fs.readFileSync(filePath, 'utf-8');
@@ -57,6 +59,7 @@ export class TerminalBridge {
 
   // ─── Write File ───────────────────────────────────────────────────
   static async writeFile(filePath: string, content: string): Promise<void> {
+    await loadNodeModules();
     if (isNode && _fs && _path) {
       const dir = _path.dirname(filePath);
       if (!_fs.existsSync(dir)) _fs.mkdirSync(dir, { recursive: true });
@@ -73,6 +76,7 @@ export class TerminalBridge {
 
   // ─── Run Command ──────────────────────────────────────────────────
   static async runCommand(command: string, cwd: string): Promise<{ stdout: string; stderr: string; error?: string }> {
+    await loadNodeModules();
     if (isNode && _execSync) {
       try {
         const stdout = _execSync(command, { cwd, encoding: 'utf-8', timeout: 60000, shell: 'powershell.exe' });
@@ -92,6 +96,7 @@ export class TerminalBridge {
 
   // ─── Get Git Branches ─────────────────────────────────────────────
   static async getBranches(cwd: string): Promise<string[]> {
+    await loadNodeModules();
     if (isNode && _execSync) {
       try {
         const stdout = _execSync('git branch -a', { cwd, encoding: 'utf-8', timeout: 10000 });

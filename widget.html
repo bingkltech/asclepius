@@ -1,139 +1,445 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Hermes Widget</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Asclepius · Widget</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
-    body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #09090b;
+      --surface:   #111113;
+      --border:    rgba(255,255,255,0.07);
+      --violet:    #8b5cf6;
+      --emerald:   #10b981;
+      --amber:     #f59e0b;
+      --red:       #ef4444;
+      --blue:      #3b82f6;
+      --text:      #f4f4f5;
+      --muted:     #71717a;
+      --dim:       #3f3f46;
+    }
+
+    html, body {
+      width: 320px;
       background: transparent;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      /* Drag handle for the borderless window */
-      -webkit-app-region: drag;
-    }
-
-    .pill {
-      display: flex;
-      align-items: center;
-      width: 230px;
-      height: 40px;
-      margin: 10px;
-      background: rgba(255, 255, 255, 0.2);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      border-radius: 20px;
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-      color: white;
-      text-shadow: 0 1px 3px rgba(0,0,0,0.5);
-      cursor: pointer;
-    }
-
-    .icon-container {
-      width: 40px;
-      height: 40px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      background: #3b82f6; /* Default Blue */
-      border-radius: 20px;
-      box-shadow: inset 0 0 5px rgba(255,255,255,0.5);
-      transition: background 0.3s ease;
-    }
-
-    .icon-text {
-      font-weight: bold;
-      font-size: 18px;
-    }
-
-    .text-container {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      margin-left: 10px;
-      flex: 1;
-      overflow: hidden;
-    }
-
-    .state {
-      font-weight: 600;
+      font-family: 'Inter', system-ui, sans-serif;
+      color: var(--text);
       font-size: 13px;
-      line-height: 1.2;
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
     }
 
-    .details {
-      font-size: 10px;
-      opacity: 0.8;
-      white-space: nowrap;
+    /* ── Widget container ───────────────────────────────────────── */
+    .widget {
+      width: 320px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
       overflow: hidden;
-      text-overflow: ellipsis;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 0 1px rgba(139,92,246,0.1);
+      position: relative;
     }
 
-    /* States */
-    .state-offline .icon-container { background: #6b7280; }
-    .state-sleeping .icon-container { background: #8b5cf6; }
-    .state-analyzing .icon-container { background: #eab308; }
-    .state-planning .icon-container { background: #f97316; }
-    .state-working .icon-container { background: #10b981; }
-    .state-error .icon-container { background: #ef4444; }
-
-    /* Glow animation for active states */
-    @keyframes pulse {
-      0% { box-shadow: 0 0 0 0 rgba(255,255,255,0.4); }
-      70% { box-shadow: 0 0 0 6px rgba(255,255,255,0); }
-      100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
-    }
-    .pulse .icon-container {
-      animation: pulse 2s infinite;
+    /* ── Drag region (top bar) ───────────────────────────────────── */
+    .drag-region {
+      -webkit-app-region: drag;
+      cursor: grab;
     }
 
+    /* ── Header ─────────────────────────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      background: linear-gradient(135deg, rgba(139,92,246,0.1), rgba(59,130,246,0.05));
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-left { display: flex; align-items: center; gap: 10px; }
+
+    .logo {
+      width: 32px; height: 32px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, #7c3aed, #2563eb);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 14px rgba(139,92,246,0.5);
+      flex-shrink: 0;
+    }
+
+    .logo svg { width: 15px; height: 15px; }
+
+    .app-name { font-weight: 800; font-size: 13px; letter-spacing: -0.02em; }
+    .app-sub  { font-size: 9px; text-transform: uppercase; letter-spacing: 0.15em; color: var(--muted); font-weight: 500; margin-top: 1px; }
+
+    .header-right { display: flex; align-items: center; gap: 6px; }
+
+    /* ── Pulse dot ───────────────────────────────────────────────── */
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      position: relative;
+      display: inline-block;
+    }
+    .dot.online  { background: var(--emerald); }
+    .dot.online::after {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      border-radius: 50%;
+      background: rgba(16,185,129,0.3);
+      animation: pulse-ring 2s ease-out infinite;
+    }
+    .dot.offline { background: var(--red); }
+
+    @keyframes pulse-ring {
+      0%   { transform: scale(0.8); opacity: 1; }
+      100% { transform: scale(2.2); opacity: 0; }
+    }
+
+    /* ── Close btn (only visible in Electron) ────────────────────── */
+    .close-btn {
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: rgba(239,68,68,0.15);
+      border: 1px solid rgba(239,68,68,0.25);
+      color: #ef4444;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 10px;
+      line-height: 1;
+      transition: all 0.15s;
+      -webkit-app-region: no-drag;
+    }
+    .close-btn:hover { background: rgba(239,68,68,0.35); }
+    body.electron .close-btn { display: flex; }
+
+    /* ── Hermes banner ───────────────────────────────────────────── */
+    .hermes-banner {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 9px 14px;
+      background: rgba(139,92,246,0.05);
+      border-bottom: 1px solid rgba(139,92,246,0.1);
+    }
+
+    .hermes-avatar {
+      width: 26px; height: 26px;
+      border-radius: 7px;
+      background: linear-gradient(135deg, #7c3aed, #2563eb);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 10px rgba(139,92,246,0.4);
+      flex-shrink: 0;
+      position: relative;
+    }
+
+    .hermes-avatar svg { width: 12px; height: 12px; }
+
+    .hermes-online-dot {
+      position: absolute;
+      bottom: -2px; right: -2px;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--emerald);
+      border: 2px solid var(--bg);
+      box-shadow: 0 0 5px rgba(16,185,129,0.8);
+    }
+
+    .hermes-info { flex: 1; min-width: 0; }
+
+    .hermes-name {
+      font-weight: 700; font-size: 11px; color: var(--text);
+      display: flex; align-items: center; gap: 5px;
+    }
+
+    .badge {
+      font-size: 7.5px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      padding: 1px 4px; border-radius: 3px;
+    }
+    .badge-v { background: rgba(139,92,246,0.15); color: #a78bfa; border: 1px solid rgba(139,92,246,0.25); }
+    .badge-g { background: rgba(16,185,129,0.12);  color: #34d399;  border: 1px solid rgba(16,185,129,0.2); }
+
+    .hermes-sub { font-size: 9px; color: var(--muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* ── Stats grid ──────────────────────────────────────────────── */
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .stat { padding: 10px 13px; background: var(--bg); }
+
+    .stat-label {
+      font-size: 8.5px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--muted); margin-bottom: 3px;
+    }
+
+    .stat-value { font-size: 20px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+    .stat-sub   { font-size: 8.5px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .violet { color: #a78bfa; }
+    .emerald{ color: #34d399; }
+    .amber  { color: #fbbf24; }
+    .blue   { color: #60a5fa; }
+
+    /* ── Task list ───────────────────────────────────────────────── */
+    .section { padding: 9px 14px; border-bottom: 1px solid var(--border); }
+
+    .section-title {
+      font-size: 8.5px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.15em; color: var(--muted);
+      margin-bottom: 7px;
+      display: flex; justify-content: space-between;
+    }
+
+    .task-row {
+      display: flex; align-items: center; gap: 7px;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.025);
+    }
+    .task-row:last-child { border-bottom: none; }
+
+    .task-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+    .task-dot.working { background: var(--violet); box-shadow: 0 0 5px rgba(139,92,246,0.7); animation: pulse-ring 1.5s infinite; }
+    .task-dot.pending { background: var(--amber); }
+    .task-dot.done    { background: var(--emerald); }
+    .task-dot.blocked { background: var(--red); }
+
+    .task-name  { flex: 1; font-size: 10.5px; color: #d4d4d8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .task-agent { font-size: 8.5px; color: var(--muted); flex-shrink: 0; }
+
+    /* ── Model + Footer ──────────────────────────────────────────── */
+    .model-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 14px;
+      background: rgba(16,185,129,0.03);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .model-label { font-size: 8.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+    .model-name  { font-size: 10px; font-weight: 700; color: #34d399; font-family: 'JetBrains Mono', 'Fira Code', monospace; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .footer { display: flex; align-items: center; justify-content: space-between; padding: 7px 14px; }
+    .footer-time { font-size: 8px; color: var(--dim); }
+
+    .open-btn {
+      font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--violet); text-decoration: none;
+      padding: 3px 7px; border: 1px solid rgba(139,92,246,0.2);
+      border-radius: 5px; background: rgba(139,92,246,0.06); cursor: pointer;
+      transition: all 0.15s; -webkit-app-region: no-drag;
+    }
+    .open-btn:hover { background: rgba(139,92,246,0.15); border-color: rgba(139,92,246,0.4); }
   </style>
 </head>
 <body>
-  <div id="pill" class="pill state-offline">
-    <div class="icon-container">
-      <span class="icon-text">H</span>
+
+<div class="widget">
+
+  <!-- Header (draggable) -->
+  <div class="header drag-region">
+    <div class="header-left">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">Asclepius</div>
+        <div class="app-sub">God-Agent v3</div>
+      </div>
     </div>
-    <div class="text-container">
-      <div id="state-text" class="state">Offline</div>
-      <div id="details-text" class="details">Connecting...</div>
+    <div class="header-right">
+      <div class="dot online" id="main-dot"></div>
+      <button class="close-btn" onclick="closeWidget()" title="Hide widget">✕</button>
     </div>
   </div>
 
-  <script>
-    const { ipcRenderer } = require('electron');
+  <!-- Hermes Banner -->
+  <div class="hermes-banner">
+    <div class="hermes-avatar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="m4.22 4.22 2.12 2.12"/><path d="m17.66 17.66 2.12 2.12"/><path d="M2 12h3"/><path d="M19 12h3"/><path d="m4.22 19.78 2.12-2.12"/><path d="m17.66 6.34 2.12-2.12"/>
+      </svg>
+      <div class="hermes-online-dot"></div>
+    </div>
+    <div class="hermes-info">
+      <div class="hermes-name">
+        Hermes
+        <span class="badge badge-v">God-Agent</span>
+        <span class="badge badge-g">Online</span>
+      </div>
+      <div class="hermes-sub" id="hermes-sub">Loading intelligence engine...</div>
+    </div>
+  </div>
 
-    const pill = document.getElementById('pill');
-    const stateText = document.getElementById('state-text');
-    const detailsText = document.getElementById('details-text');
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">Projects</div>
+      <div class="stat-value violet" id="s-projects">—</div>
+      <div class="stat-sub" id="s-projects-sub">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Agents</div>
+      <div class="stat-value blue" id="s-agents">—</div>
+      <div class="stat-sub" id="s-agents-sub">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Tasks Done</div>
+      <div class="stat-value emerald" id="s-done">—</div>
+      <div class="stat-sub" id="s-done-sub">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Running</div>
+      <div class="stat-value amber" id="s-running">—</div>
+      <div class="stat-sub" id="s-running-sub">—</div>
+    </div>
+  </div>
 
-    async function updateStatus() {
-      const status = await ipcRenderer.invoke('get-status');
-      
-      stateText.innerText = status.state;
-      detailsText.innerText = status.details;
+  <!-- Active Tasks -->
+  <div class="section">
+    <div class="section-title">
+      <span>Active Pipeline</span>
+      <span id="task-count">—</span>
+    </div>
+    <div id="task-list">
+      <div class="task-row">
+        <div class="task-dot pending"></div>
+        <span class="task-name" style="color:#52525b;font-style:italic">No active tasks</span>
+      </div>
+    </div>
+  </div>
 
-      // Update color class
-      pill.className = 'pill'; // reset
-      const stateClass = 'state-' + status.state.toLowerCase();
-      pill.classList.add(stateClass);
+  <!-- Model row -->
+  <div class="model-row">
+    <span class="model-label">Active Brain</span>
+    <span class="model-name" id="active-brain">—</span>
+  </div>
 
-      // Add pulse if active
-      if (['Analyzing', 'Planning', 'Working'].includes(status.state)) {
-        pill.classList.add('pulse');
-      }
-    }
+  <!-- Footer -->
+  <div class="footer">
+    <div class="footer-time" id="footer-time">—</div>
+    <a class="open-btn" href="http://localhost:5174/" target="_blank">Open Dashboard →</a>
+  </div>
 
-    // Poll every 1 second
-    setInterval(updateStatus, 1000);
-    updateStatus();
+</div>
 
-    // Click handler to open dashboard
-    pill.addEventListener('click', () => {
-      ipcRenderer.send('open-dashboard');
-    });
-  </script>
+<script>
+// Detect Electron context
+if (window.electronWidget) {
+  document.body.classList.add('electron');
+}
+
+function closeWidget() {
+  if (window.electronWidget) {
+    window.electronWidget.close();
+  }
+}
+
+// ── Read from localStorage (same keys as usePersistentState) ─────
+
+const KEYS = {
+  workers:   'asclepius_workers_v5',
+  projects:  'asclepius_projects_v5',
+  tasks:     'asclepius_dag_tasks_v5',
+  godConfig: 'asclepius_god_agent_config_v1',
+};
+
+function readLS(key) {
+  try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : null; }
+  catch { return null; }
+}
+
+function tick() {
+  const now = new Date();
+  document.getElementById('footer-time').textContent =
+    'Refreshed ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  // God config
+  const cfg = readLS(KEYS.godConfig);
+  if (cfg) {
+    const engines = {
+      google_jules:  'Gemini (Jules)',
+      google_gemini: 'Gemini Flash',
+      anthropic:     'Claude 3.5',
+      openai:        'GPT-4o',
+      local_ollama:  cfg.ollamaModel || 'Ollama',
+    };
+    const label = engines[cfg.intelligenceEngine] || cfg.intelligenceEngine;
+    document.getElementById('active-brain').textContent = label;
+    document.getElementById('hermes-sub').textContent   = 'Engine: ' + label;
+  } else {
+    document.getElementById('active-brain').textContent = 'Not configured';
+    document.getElementById('hermes-sub').textContent   = 'Configure in Fleet → God-Agent';
+  }
+
+  // Workers
+  const workers = readLS(KEYS.workers) || [];
+  const brains = workers.filter(w => w.category === 'brain').length;
+  const hands  = workers.filter(w => w.category === 'hand').length;
+  document.getElementById('s-agents').textContent     = workers.length || '0';
+  document.getElementById('s-agents-sub').textContent = workers.length ? brains + ' Brains · ' + hands + ' Hands' : 'No agents';
+
+  // Projects
+  const projects = readLS(KEYS.projects) || [];
+  document.getElementById('s-projects').textContent     = projects.length || '0';
+  document.getElementById('s-projects-sub').textContent = projects.length
+    ? projects.slice(0,2).map(p => p.name).join(', ') + (projects.length > 2 ? '…' : '')
+    : 'No projects yet';
+
+  // Tasks
+  const tasks = readLS(KEYS.tasks) || [];
+  const done    = tasks.filter(t => t.status === 'completed').length;
+  const running = tasks.filter(t => t.status === 'working').length;
+  const pending = tasks.filter(t => t.status === 'pending').length;
+  const blocked = tasks.filter(t => t.status === 'blocked').length;
+
+  document.getElementById('s-done').textContent     = done;
+  document.getElementById('s-done-sub').textContent = tasks.length ? 'of ' + tasks.length + ' total' : 'No plan yet';
+  document.getElementById('s-running').textContent     = running;
+  document.getElementById('s-running-sub').textContent = pending ? pending + ' pending · ' + blocked + ' blocked'
+                                                        : tasks.length ? 'All idle' : '—';
+
+  // Task list
+  const active = tasks.filter(t => ['working','pending','blocked','failed'].includes(t.status)).slice(0, 4);
+  const taskEl = document.getElementById('task-list');
+  const countEl = document.getElementById('task-count');
+
+  if (active.length === 0) {
+    countEl.textContent = tasks.length ? tasks.length + ' total' : '—';
+    taskEl.innerHTML = '<div class="task-row"><div class="task-dot done"></div>'
+      + '<span class="task-name" style="color:#52525b;font-style:italic">'
+      + (done > 0 ? 'All ' + done + ' tasks complete ✓' : 'No active tasks')
+      + '</span></div>';
+  } else {
+    countEl.textContent = active.length + ' active';
+    taskEl.innerHTML = active.map(t => {
+      const w = workers.find(a => a.id === t.assignedAgentId);
+      const cls = { working:'working', pending:'pending', blocked:'blocked', failed:'blocked' }[t.status] || 'pending';
+      return '<div class="task-row">'
+        + '<div class="task-dot ' + cls + '"></div>'
+        + '<span class="task-name" title="' + (t.description || '') + '">' + (t.title || t.description || 'Task') + '</span>'
+        + '<span class="task-agent">' + (w ? w.name.split(' ')[0] : t.status) + '</span>'
+        + '</div>';
+    }).join('');
+  }
+}
+
+tick();
+setInterval(tick, 3000);
+</script>
 </body>
 </html>

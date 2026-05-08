@@ -5,7 +5,24 @@ import { exec } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 
+// ── Shared Security Helpers ────────────────────────────────────────
+const SAFE_WORKSPACE_ROOTS = [
+  'F:\\012A_Github\\',
+  'F:\\012D_TRADE\\',
+  'C:\\Users\\likha\\',
+];
+
+function isPathInWorkspace(filePath: string): boolean {
+  const normalized = path.normalize(filePath);
+  return SAFE_WORKSPACE_ROOTS.some(root =>
+    normalized.toLowerCase().startsWith(root.toLowerCase())
+  );
+}
+
 const asclepiusBackendPlugin = () => {
+  // Rate-limiter state: tracks timestamps of recent run-command calls
+  let commandTimestamps: number[] = [];
+
   return {
     name: 'asclepius-backend',
     configureServer(server: any) {
@@ -115,14 +132,34 @@ const asclepiusBackendPlugin = () => {
         }
 
         if (req.url === '/api/write-file' && req.method === 'POST') {
+          // ── Security: localhost-only ───────────────────────────────
+          const writeAddr = req.socket?.remoteAddress ?? '';
+          const writeIsLocal = writeAddr === '127.0.0.1' || writeAddr === '::1' || writeAddr === '::ffff:127.0.0.1';
+          if (!writeIsLocal) {
+            res.statusCode = 403;
+            return res.end(JSON.stringify({ error: 'Forbidden: write-file is localhost-only' }));
+          }
           let body = '';
           req.on('data', (chunk: any) => { body += chunk.toString(); });
           req.on('end', () => {
             try {
               const { filePath, content } = JSON.parse(body);
+
+              // ── Security: path traversal guard ────────────────────
+              // Block any write outside of known workspace roots.
+              // Prevents agents from writing to system directories.
+              if (!isPathInWorkspace(filePath)) {
+                console.warn(`[AsclepiusBackend] BLOCKED write outside workspace: "${filePath}"`);
+                res.statusCode = 403;
+                return res.end(JSON.stringify({
+                  error: `Write path not permitted: "${filePath}". Must be within a workspace root.`
+                }));
+              }
+
               const dir = path.dirname(filePath);
               if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
               fs.writeFileSync(filePath, content, 'utf8');
+              console.log(`[AsclepiusBackend] ✅ Wrote file: "${filePath}" (${content.length} bytes)`);
               res.setHeader('Content-Type', 'application/json');
               res.end(JSON.stringify({ success: true }));
             } catch (e: any) {
@@ -157,46 +194,77 @@ const asclepiusBackendPlugin = () => {
         }
 
         if (req.url === '/api/run-command' && req.method === 'POST') {
+          // ── Security: localhost-only origin guard ─────────────────
+          const remoteAddr = req.socket?.remoteAddress ?? '';
+          const isLocal = remoteAddr === '127.0.0.1' || remoteAddr === '::1' || remoteAddr === '::ffff:127.0.0.1';
+          if (!isLocal) {
+            res.statusCode = 403;
+            return res.end(JSON.stringify({ error: 'Forbidden: run-command is localhost-only' }));
+          }
+
+          // ── Security: rate limiter (max 20 commands per minute) ───
+          const now = Date.now();
+          commandTimestamps = commandTimestamps.filter((t: number) => now - t < 60_000);
+          if (commandTimestamps.length >= 20) {
+            res.statusCode = 429;
+            return res.end(JSON.stringify({ error: 'Rate limit: max 20 commands/min exceeded' }));
+          }
+          commandTimestamps.push(now);
+
           let body = '';
           req.on('data', (chunk: any) => { body += chunk.toString(); });
           req.on('end', () => {
             try {
               const { command, cwd } = JSON.parse(body);
-              console.log(`[AsclepiusBackend] Executing: ${command} in ${cwd}`);
-              exec(command, { cwd, shell: 'powershell.exe' }, (error, stdout, stderr) => {
-                if (error) console.error(`[AsclepiusBackend] Exec Error:`, error);
-                if (stderr) console.error(`[AsclepiusBackend] Exec Stderr:`, stderr);
+
+              // ── Security: command allowlist ───────────────────────
+              // Only permit known, safe base commands used by the agent pipeline.
+              // Arguments are NOT validated here — allowlist covers the base command only.
+              const ALLOWED_COMMAND_PREFIXES = [
+                'git fetch', 'git branch', 'git checkout', 'git status',
+                'git rebase', 'git merge', 'git log', 'git diff',
+                'npx tsc', 'tsc',
+                'npm run test', 'npm run lint', 'npm run build', 'npm run dev',
+                'npx vitest', 'vitest',
+                'npx playwright', 'playwright',
+                'uv run',
+                'node -e',
+                'echo ',  // safe — used for writing to log files
+              ];
+              const trimmed = command.trim();
+              const isAllowed = ALLOWED_COMMAND_PREFIXES.some(prefix =>
+                trimmed.toLowerCase().startsWith(prefix.toLowerCase())
+              );
+              if (!isAllowed) {
+                console.warn(`[AsclepiusBackend] BLOCKED command (not in allowlist): "${trimmed}"`);
+                res.statusCode = 403;
+                return res.end(JSON.stringify({
+                  error: `Command not permitted: "${trimmed.substring(0, 80)}". Only git, tsc, npm, vitest, uv, playwright commands are allowed.`
+                }));
+              }
+
+              // ── Security: cwd workspace boundary guard ─────────────
+              // Uses shared isPathInWorkspace() — same roots as write-file guard.
+              const normalizedCwd = path.normalize(cwd || '');
+              if (!isPathInWorkspace(normalizedCwd)) {
+                console.warn(`[AsclepiusBackend] BLOCKED cwd (outside workspace): "${normalizedCwd}"`);
+                res.statusCode = 403;
+                return res.end(JSON.stringify({
+                  error: `Working directory not permitted: "${normalizedCwd}". Must be within a known workspace root.`
+                }));
+              }
+
+              console.log(`[AsclepiusBackend] ✅ Executing: "${trimmed}" in "${normalizedCwd}"`);
+              exec(trimmed, { cwd: normalizedCwd, shell: 'powershell.exe', timeout: 120_000 }, (error, stdout, stderr) => {
+                if (error) console.error(`[AsclepiusBackend] Exec Error:`, error.message);
+                if (stderr) console.error(`[AsclepiusBackend] Exec Stderr:`, stderr.slice(0, 500));
                 res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ error: error?.message, stdout, stderr }));
+                res.end(JSON.stringify({ error: error?.message ?? null, stdout, stderr }));
               });
             } catch (e: any) {
-              console.error(`[AsclepiusBackend] JSON parse error:`, e.message, "Body:", body);
+              console.error(`[AsclepiusBackend] JSON parse error:`, e.message);
               res.statusCode = 400;
-              res.end('Invalid request');
-            }
-          });
-          return;
-        }
-        // ── LLM Proxy: Forwards LLM calls server-side to avoid CORS ──
-        if (req.url === '/api/llm-proxy' && req.method === 'POST') {
-          let body = '';
-          req.on('data', (chunk: any) => { body += chunk.toString(); });
-          req.on('end', async () => {
-            try {
-              const { targetUrl, headers: reqHeaders, payload } = JSON.parse(body);
-              console.log(`[AsclepiusBackend] LLM Proxy → ${targetUrl}`);
-              const response = await fetch(targetUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...reqHeaders },
-                body: JSON.stringify(payload),
-              });
-              const data = await response.text();
-              res.setHeader('Content-Type', 'application/json');
-              res.end(data);
-            } catch (e: any) {
-              console.error(`[AsclepiusBackend] LLM Proxy Error:`, e.message);
-              res.statusCode = 502;
-              res.end(JSON.stringify({ error: `LLM Proxy failed: ${e.message}` }));
+              res.end(JSON.stringify({ error: 'Invalid request body' }));
             }
           });
           return;

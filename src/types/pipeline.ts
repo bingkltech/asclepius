@@ -43,6 +43,7 @@ export interface ModelConfig {
   temperature?: number;          // 0.0 - 2.0
   maxTokens?: number;            // Response length cap
   systemPrompt?: string;         // Agent personality / role injection
+  complexity?: 'high' | 'medium' | 'low'; // Cognitive load requirement
   
   // ── API Vault Routing ──
   fallbackChain?: ModelProvider[]; // E.g., ['google_jules', 'local_ollama']
@@ -53,7 +54,7 @@ export interface ModelConfig {
 // Each agent is a configurable unit with skills, a backing model,
 // and operational parameters.
 
-export type AgentCategory = 'brain' | 'seat'; // 'brain' (planning/fallback allowed) | 'seat' (execution/no fallback)
+export type AgentCategory = 'brain' | 'hand'; // 'brain' (planning/fallback allowed) | 'hand' (execution/no fallback)
 export type AgentType = 'local' | 'cloud' | 'hybrid';
 export type AgentStatus = 'idle' | 'working' | 'reviewing' | 'offline' | 'error';
 
@@ -61,7 +62,7 @@ export interface AgentConfig {
   id: string;
   name: string;                  // Display name (e.g. "Athena")
   role: string;                  // Human-readable role (e.g. "Architect")
-  category: AgentCategory;       // Brains plan, Seats execute
+  category: AgentCategory;       // Brains plan, Hands execute
   type: AgentType;
   status: AgentStatus;
   avatarColor: string;           // Tailwind class for UI display
@@ -78,7 +79,7 @@ export interface AgentConfig {
   canWriteFiles?: boolean;       // Permission to use /api/write-file (safety gate)
   canExecuteCommands?: boolean;  // Permission to use /api/run-command (safety gate)
   requiresQA?: boolean;          // If true, task must pass QA gate before completion
-  allowFallback?: boolean;       // MUST be false for 'seat', can be true for 'brain'
+  allowFallback?: boolean;       // MUST be false for 'hand', can be true for 'brain'
 
   // ── Knowledge Assets (Skill Seekers) ──
   knowledgeAssets?: string[];    // Paths to .skill.md files (pre-built knowledge)
