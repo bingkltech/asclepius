@@ -269,12 +269,15 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
   static tick(plan: ExecutionPlan, _agents: AgentConfig[]): ExecutionPlan {
     const DEFAULT_MAX_RETRIES = 3;
 
+    // Performance optimization: Pre-calculate task map to prevent O(N^2) lookups
+    const taskMap = new Map(plan.tasks.map(t => [t.id, t]));
+
     for (const task of plan.tasks) {
 
       // ── Pass A: Unblock tasks whose dependencies are now complete ─────
       if (task.status === 'blocked') {
         const allDepsMet = task.dependencies.every(depId => {
-          const dep = plan.tasks.find(t => t.id === depId);
+          const dep = taskMap.get(depId);
           return dep?.status === 'completed';
         });
         if (allDepsMet) {
@@ -283,7 +286,7 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
 
           // ── DAG Memory Bus Injection ──
           const handoffReports = task.dependencies.map(depId => {
-            const dep = plan.tasks.find(t => t.id === depId);
+            const dep = taskMap.get(depId);
             if (!dep?.output) return '';
             // Truncate to 3000 chars to protect Local Ollama Context Limit
             const truncatedOutput = dep.output.length > 3000 ? dep.output.substring(0, 3000) + '\n...[OUTPUT TRUNCATED FOR CONTEXT SIZE]' : dep.output;
