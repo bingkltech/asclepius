@@ -231,6 +231,17 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
 
     const available = agents.filter(a => !a.isLeadAgent && a.status !== 'offline');
 
+    // O(1) Pre-calculate agent loads to prevent O(N * M^2) bottleneck
+    const agentLoads = new Map<string, number>();
+    for (const a of available) {
+      agentLoads.set(a.id, 0);
+    }
+    for (const t of tasks) {
+      if (t.assignedAgentId && (t.status === 'working' || t.status === 'assigned')) {
+        agentLoads.set(t.assignedAgentId, (agentLoads.get(t.assignedAgentId) || 0) + 1);
+      }
+    }
+
     for (const task of tasks) {
       if (task.assignedAgentId) continue;
 
@@ -241,10 +252,7 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
         const skillMatch = task.requiredSkills.filter(s => agent.skills.includes(s)).length;
         const coverage = task.requiredSkills.length > 0 ? skillMatch / task.requiredSkills.length : 0;
 
-        const currentLoad = tasks.filter(t =>
-          t.assignedAgentId === agent.id &&
-          (t.status === 'working' || t.status === 'assigned')
-        ).length;
+        const currentLoad = agentLoads.get(agent.id) || 0;
         const maxConcurrent = agent.maxConcurrentTasks ?? 1;
         const loadPenalty = currentLoad >= maxConcurrent ? -100 : 0;
 
@@ -257,6 +265,7 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
 
       if (bestAgent && bestScore > -100) {
         task.assignedAgentId = bestAgent.id;
+        agentLoads.set(bestAgent.id, (agentLoads.get(bestAgent.id) || 0) + 1);
         task.logs.push(`[${new Date().toISOString()}] Assigned to ${bestAgent.name} (score: ${bestScore.toFixed(2)})`);
       }
     }
@@ -269,12 +278,18 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
   static tick(plan: ExecutionPlan, _agents: AgentConfig[]): ExecutionPlan {
     const DEFAULT_MAX_RETRIES = 3;
 
+    // Pre-calculate task lookup map to prevent O(N^2) bottleneck
+    const taskMap = new Map<string, PipelineTask>();
+    for (const task of plan.tasks) {
+      taskMap.set(task.id, task);
+    }
+
     for (const task of plan.tasks) {
 
       // ── Pass A: Unblock tasks whose dependencies are now complete ─────
       if (task.status === 'blocked') {
         const allDepsMet = task.dependencies.every(depId => {
-          const dep = plan.tasks.find(t => t.id === depId);
+          const dep = taskMap.get(depId);
           return dep?.status === 'completed';
         });
         if (allDepsMet) {
@@ -283,7 +298,7 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
 
           // ── DAG Memory Bus Injection ──
           const handoffReports = task.dependencies.map(depId => {
-            const dep = plan.tasks.find(t => t.id === depId);
+            const dep = taskMap.get(depId);
             if (!dep?.output) return '';
             // Truncate to 3000 chars to protect Local Ollama Context Limit
             const truncatedOutput = dep.output.length > 3000 ? dep.output.substring(0, 3000) + '\n...[OUTPUT TRUNCATED FOR CONTEXT SIZE]' : dep.output;
