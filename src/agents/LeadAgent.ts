@@ -231,6 +231,14 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
 
     const available = agents.filter(a => !a.isLeadAgent && a.status !== 'offline');
 
+    // ⚡ Bolt: Pre-calculate agent loads to prevent O(N*M) nested loop lookups
+    const agentLoadMap = new Map<string, number>();
+    for (const t of tasks) {
+      if (t.assignedAgentId && (t.status === 'working' || t.status === 'assigned')) {
+        agentLoadMap.set(t.assignedAgentId, (agentLoadMap.get(t.assignedAgentId) || 0) + 1);
+      }
+    }
+
     for (const task of tasks) {
       if (task.assignedAgentId) continue;
 
@@ -241,10 +249,8 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
         const skillMatch = task.requiredSkills.filter(s => agent.skills.includes(s)).length;
         const coverage = task.requiredSkills.length > 0 ? skillMatch / task.requiredSkills.length : 0;
 
-        const currentLoad = tasks.filter(t =>
-          t.assignedAgentId === agent.id &&
-          (t.status === 'working' || t.status === 'assigned')
-        ).length;
+        // ⚡ Bolt: Use O(1) Map lookup instead of O(N) tasks.filter() inside the loop
+        const currentLoad = agentLoadMap.get(agent.id) || 0;
         const maxConcurrent = agent.maxConcurrentTasks ?? 1;
         const loadPenalty = currentLoad >= maxConcurrent ? -100 : 0;
 
@@ -258,6 +264,8 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
       if (bestAgent && bestScore > -100) {
         task.assignedAgentId = bestAgent.id;
         task.logs.push(`[${new Date().toISOString()}] Assigned to ${bestAgent.name} (score: ${bestScore.toFixed(2)})`);
+        // ⚡ Bolt: Incrementally update the load map when assigning a new task
+        agentLoadMap.set(bestAgent.id, (agentLoadMap.get(bestAgent.id) || 0) + 1);
       }
     }
 
@@ -269,12 +277,18 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
   static tick(plan: ExecutionPlan, _agents: AgentConfig[]): ExecutionPlan {
     const DEFAULT_MAX_RETRIES = 3;
 
+    // ⚡ Bolt: Pre-calculate task map to prevent O(N^2) lookups inside dependency checks
+    const taskMap = new Map<string, PipelineTask>();
+    for (const t of plan.tasks) {
+      taskMap.set(t.id, t);
+    }
+
     for (const task of plan.tasks) {
 
       // ── Pass A: Unblock tasks whose dependencies are now complete ─────
       if (task.status === 'blocked') {
         const allDepsMet = task.dependencies.every(depId => {
-          const dep = plan.tasks.find(t => t.id === depId);
+          const dep = taskMap.get(depId);
           return dep?.status === 'completed';
         });
         if (allDepsMet) {
@@ -283,7 +297,7 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
 
           // ── DAG Memory Bus Injection ──
           const handoffReports = task.dependencies.map(depId => {
-            const dep = plan.tasks.find(t => t.id === depId);
+            const dep = taskMap.get(depId);
             if (!dep?.output) return '';
             // Truncate to 3000 chars to protect Local Ollama Context Limit
             const truncatedOutput = dep.output.length > 3000 ? dep.output.substring(0, 3000) + '\n...[OUTPUT TRUNCATED FOR CONTEXT SIZE]' : dep.output;
