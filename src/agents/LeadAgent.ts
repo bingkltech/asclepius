@@ -231,6 +231,16 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
 
     const available = agents.filter(a => !a.isLeadAgent && a.status !== 'offline');
 
+    // ⚡ Bolt: Optimize currentLoad calculation
+    // Why: Previously `tasks.filter()` ran for every agent on every unassigned task, causing O(T^2 * A) complexity.
+    // What: Pre-calculate agent load into a Map, turning the load lookup into O(1) and reducing total complexity to O(T * A).
+    const agentLoads = new Map<string, number>();
+    for (const t of tasks) {
+      if (t.assignedAgentId && (t.status === 'working' || t.status === 'assigned')) {
+        agentLoads.set(t.assignedAgentId, (agentLoads.get(t.assignedAgentId) || 0) + 1);
+      }
+    }
+
     for (const task of tasks) {
       if (task.assignedAgentId) continue;
 
@@ -241,10 +251,7 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
         const skillMatch = task.requiredSkills.filter(s => agent.skills.includes(s)).length;
         const coverage = task.requiredSkills.length > 0 ? skillMatch / task.requiredSkills.length : 0;
 
-        const currentLoad = tasks.filter(t =>
-          t.assignedAgentId === agent.id &&
-          (t.status === 'working' || t.status === 'assigned')
-        ).length;
+        const currentLoad = agentLoads.get(agent.id) || 0;
         const maxConcurrent = agent.maxConcurrentTasks ?? 1;
         const loadPenalty = currentLoad >= maxConcurrent ? -100 : 0;
 
@@ -257,6 +264,7 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
 
       if (bestAgent && bestScore > -100) {
         task.assignedAgentId = bestAgent.id;
+        agentLoads.set(bestAgent.id, (agentLoads.get(bestAgent.id) || 0) + 1); // Track new assignment
         task.logs.push(`[${new Date().toISOString()}] Assigned to ${bestAgent.name} (score: ${bestScore.toFixed(2)})`);
       }
     }
