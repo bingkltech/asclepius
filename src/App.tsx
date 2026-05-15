@@ -383,6 +383,11 @@ export default function App() {
     { id: "settings", label: "Settings", icon: Settings, locked: true },
   ];
 
+  // ⚡ Bolt: Prevent O(N*M) rendering bottlenecks inside dagTasks.map
+  // Why: workers.find inside dagTasks.map creates an O(N*M) loop which impacts render performance when task lists scale.
+  // What: Pre-calculate an O(1) lookup Map of workers.
+  const workersLookup = useMemo(() => new Map(workers.map(w => [w.id, w])), [workers]);
+
   // Performance optimization: Memoize active project to prevent O(N * M) lookups during worker mapping/filtering
   const activeProjectMemo = useMemo(() => projects.find(p => p.id === activeProjectId), [projects, activeProjectId]);
   const activeProjectWorkerIds = useMemo(() => new Set(activeProjectMemo?.assignedWorkerIds || []), [activeProjectMemo]);
@@ -599,7 +604,7 @@ export default function App() {
                 ) : (
                   <div className="p-3 space-y-2 overflow-y-auto custom-scrollbar flex-1">
                     {dagTasks.map((task, idx) => {
-                      const assignee = workers.find(w => w.id === task.assignedAgentId);
+                      const assignee = workersLookup.get(task.assignedAgentId || '');
                       const statusConfig: Record<string, { icon: any; color: string; bg: string; border: string }> = {
                         blocked:   { icon: Lock,          color: 'text-zinc-600',   bg: 'bg-zinc-900',        border: 'border-zinc-800' },
                         pending:   { icon: CircleDashed,  color: 'text-amber-500',  bg: 'bg-[#09090b]',      border: 'border-zinc-800 hover:border-zinc-700' },
