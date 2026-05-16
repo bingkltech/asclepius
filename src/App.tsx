@@ -387,7 +387,16 @@ export default function App() {
   const activeProjectMemo = useMemo(() => projects.find(p => p.id === activeProjectId), [projects, activeProjectId]);
   const activeProjectWorkerIds = useMemo(() => new Set(activeProjectMemo?.assignedWorkerIds || []), [activeProjectMemo]);
 
-  const activeWorkerConfig = workers.find(w => w.id === configuringWorkerId);
+  // ⚡ Bolt: Prevent O(N*M) worker lookups during task rendering
+  // Why: workers.find() inside dagTasks.map causes unnecessary overhead for large execution plans
+  // What: Pre-calculate an O(1) lookup map of all available workers
+  const workerMap = useMemo(() => {
+    const map = new Map<string, Worker>();
+    workers.forEach(w => map.set(w.id, w));
+    return map;
+  }, [workers]);
+
+  const activeWorkerConfig = configuringWorkerId ? workerMap.get(configuringWorkerId) : undefined;
   const activeDirective = activeWorkerConfig ? (workerDirectives[activeWorkerConfig.id] || '') : '';
   const isWorkerConnected = activeWorkerConfig ? !!workerConnections[activeWorkerConfig.id] : false;
 
@@ -599,7 +608,7 @@ export default function App() {
                 ) : (
                   <div className="p-3 space-y-2 overflow-y-auto custom-scrollbar flex-1">
                     {dagTasks.map((task, idx) => {
-                      const assignee = workers.find(w => w.id === task.assignedAgentId);
+                      const assignee = task.assignedAgentId ? workerMap.get(task.assignedAgentId) : undefined;
                       const statusConfig: Record<string, { icon: any; color: string; bg: string; border: string }> = {
                         blocked:   { icon: Lock,          color: 'text-zinc-600',   bg: 'bg-zinc-900',        border: 'border-zinc-800' },
                         pending:   { icon: CircleDashed,  color: 'text-amber-500',  bg: 'bg-[#09090b]',      border: 'border-zinc-800 hover:border-zinc-700' },
