@@ -1,3 +1,7 @@
 ## 2024-04-22 - Optimized App.tsx array lookups inside list mapping
 **Learning:** O(N) array lookups (`projects.find`) were nested inside O(M) component mapping functions (`workers.map` and `workers.filter`) within the primary UI render path in `App.tsx`. Because `workers` and `projects` scales with usage, this pattern causes an O(N*M) rendering complexity drop. The fix is applying `useMemo` specifically outside the loop context to establish an O(1) property/Set lookup reference (`activeProjectWorkerIds.has(w.id)`). This prevents unnecessary nested list scanning on every frame render.
 **Action:** Always hoist complex derivations like array lookups out of list mappers/filters within React components and use `useMemo` when rendering dynamic lists. Look for `.find()` inside `.filter()` as a key performance anti-pattern.
+
+## 2024-05-17 - Optimized LeadAgent DAG and assignment complexity
+**Learning:** Found O(N^2) complexity in `LeadAgent.tick` dependency resolution and O(T^2 * A) complexity in `LeadAgent.autoAssign` due to repeated `.find()` and `.filter()` array scans inside nested loops. Because DAG tasks can grow substantially per directive, this caused significant orchestration delays.
+**Action:** When working with Asclepius DAG execution paths, always pre-calculate data lookups (e.g., `taskMap = new Map()`, `agentLoad = new Map()`) outside the loops to shift complexity to O(1) Map lookups, preventing exponential rendering or processing bottlenecks.
