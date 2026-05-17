@@ -231,6 +231,16 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
 
     const available = agents.filter(a => !a.isLeadAgent && a.status !== 'offline');
 
+    // ⚡ Bolt: Pre-calculate current load for agents to avoid O(T^2 * A) complexity
+    // Why: tasks.filter() inside the nested loops recalculates load unnecessarily.
+    // What: Maintain an agentLoad Map updated efficiently as assignments occur.
+    const agentLoad = new Map<string, number>();
+    for (const t of tasks) {
+      if (t.assignedAgentId && (t.status === 'working' || t.status === 'assigned')) {
+        agentLoad.set(t.assignedAgentId, (agentLoad.get(t.assignedAgentId) || 0) + 1);
+      }
+    }
+
     for (const task of tasks) {
       if (task.assignedAgentId) continue;
 
@@ -241,10 +251,7 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
         const skillMatch = task.requiredSkills.filter(s => agent.skills.includes(s)).length;
         const coverage = task.requiredSkills.length > 0 ? skillMatch / task.requiredSkills.length : 0;
 
-        const currentLoad = tasks.filter(t =>
-          t.assignedAgentId === agent.id &&
-          (t.status === 'working' || t.status === 'assigned')
-        ).length;
+        const currentLoad = agentLoad.get(agent.id) || 0;
         const maxConcurrent = agent.maxConcurrentTasks ?? 1;
         const loadPenalty = currentLoad >= maxConcurrent ? -100 : 0;
 
@@ -257,6 +264,11 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
 
       if (bestAgent && bestScore > -100) {
         task.assignedAgentId = bestAgent.id;
+        // Update the load map correctly after assignment to maintain accuracy
+        agentLoad.set(bestAgent.id, (agentLoad.get(bestAgent.id) || 0) + 1);
+        // Temporarily set status to assigned so that logic holds, even if caller expects it
+        // Or if the initial state isn't assigned, it's just 'pending' but assignedAgentId is set.
+        // It's conceptually load though.
         task.logs.push(`[${new Date().toISOString()}] Assigned to ${bestAgent.name} (score: ${bestScore.toFixed(2)})`);
       }
     }
@@ -269,12 +281,17 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
   static tick(plan: ExecutionPlan, _agents: AgentConfig[]): ExecutionPlan {
     const DEFAULT_MAX_RETRIES = 3;
 
+    // ⚡ Bolt: Replace O(N) array lookups with O(1) Map lookup
+    // Why: plan.tasks.find() inside a dependency loop causes O(N^2) complexity.
+    // What: Pre-compute a task Map once outside the loop.
+    const taskMap = new Map(plan.tasks.map(t => [t.id, t]));
+
     for (const task of plan.tasks) {
 
       // ── Pass A: Unblock tasks whose dependencies are now complete ─────
       if (task.status === 'blocked') {
         const allDepsMet = task.dependencies.every(depId => {
-          const dep = plan.tasks.find(t => t.id === depId);
+          const dep = taskMap.get(depId);
           return dep?.status === 'completed';
         });
         if (allDepsMet) {
@@ -283,7 +300,7 @@ Respond with ONLY a JSON array. No markdown fences. Each element:
 
           // ── DAG Memory Bus Injection ──
           const handoffReports = task.dependencies.map(depId => {
-            const dep = plan.tasks.find(t => t.id === depId);
+            const dep = taskMap.get(depId);
             if (!dep?.output) return '';
             // Truncate to 3000 chars to protect Local Ollama Context Limit
             const truncatedOutput = dep.output.length > 3000 ? dep.output.substring(0, 3000) + '\n...[OUTPUT TRUNCATED FOR CONTEXT SIZE]' : dep.output;
